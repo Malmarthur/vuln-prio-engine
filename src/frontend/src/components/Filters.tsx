@@ -12,6 +12,7 @@ export interface FilterParams {
   min_cvss?: string | number;
   date_from?: string;
   date_to?: string;
+  priority_level?: string;
 }
 
 interface FiltersProps {
@@ -20,6 +21,7 @@ interface FiltersProps {
 }
 
 const SEVERITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'NONE'];
+const PRIORITIES = ['V0', 'V1', 'V2', 'V3'];
 
 export default function Filters({ filters, onChange }: FiltersProps) {
   const [searchInput, setSearchInput] = useState(filters.search || '');
@@ -147,6 +149,23 @@ export default function Filters({ filters, onChange }: FiltersProps) {
             onChange={(e) => set('date_to', e.target.value)}
             className="rounded-md border-gray-300 shadow-sm text-sm focus:border-gray-500 focus:ring-gray-500"
           />
+        </div>
+
+        {/* Priority */}
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">
+            Priority
+          </label>
+          <select
+            value={filters.priority_level || ''}
+            onChange={(e) => set('priority_level', e.target.value)}
+            className="rounded-md border-gray-300 shadow-sm text-sm focus:border-gray-500 focus:ring-gray-500"
+          >
+            <option value="">All</option>
+            {PRIORITIES.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
         </div>
 
         {/* Reset */}

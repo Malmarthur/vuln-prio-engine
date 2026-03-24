@@ -22,6 +22,9 @@ export interface Vulnerability {
   kev_ransomware_use: boolean | null;
   euvd_id: string | null;
   euvd_exploitation: string | null;
+  priority_level: string | null;
+  priority_score: number | null;
+  priority_confidence: number | null;
   updated_at: string | null;
   created_at: string | null;
 }
@@ -81,6 +84,35 @@ export interface PaginatedIngestionLogs {
 export interface TriggerResponse {
   status: string;
   source: string;
+}
+
+// --- Scoring types ---
+
+export interface ColumnConfig {
+  enabled: boolean;
+  weight: number;
+  type: 'numeric' | 'boolean' | 'categorical';
+  range?: [number, number];
+  values?: Record<string, number>;
+  default_value: number;
+}
+
+export interface ScoringProfile {
+  columns: Record<string, ColumnConfig>;
+  thresholds: Record<string, number>;
+}
+
+export interface ScoringRunResponse {
+  rows_updated: number;
+  distribution: Record<string, number>;
+}
+
+export interface ScoreDistribution {
+  priority_counts: Record<string, number>;
+  score_histogram: Array<{ bucket: string; count: number }>;
+  confidence_histogram: Array<{ bucket: string; count: number }>;
+  scored_count: number;
+  unscored_count: number;
 }
 
 // --- Internal helpers ---
@@ -155,4 +187,29 @@ export function updateSetting(key: string, value: string): Promise<Record<string
     method: 'PUT',
     body: JSON.stringify({ value }),
   });
+}
+
+// --- Scoring API functions ---
+
+export function fetchScoringProfile(): Promise<ScoringProfile> {
+  return request<ScoringProfile>('/scoring/profile');
+}
+
+export function saveScoringProfile(profile: ScoringProfile): Promise<ScoringProfile> {
+  return request<ScoringProfile>('/scoring/profile', {
+    method: 'PUT',
+    body: JSON.stringify(profile),
+  });
+}
+
+export function runScoring(): Promise<ScoringRunResponse> {
+  return request<ScoringRunResponse>('/scoring/run', { method: 'POST' });
+}
+
+export function fetchColumnValues(column: string): Promise<{ column: string; values: string[] }> {
+  return request<{ column: string; values: string[] }>(`/scoring/column-values/${encodeURIComponent(column)}`);
+}
+
+export function fetchScoreDistribution(): Promise<ScoreDistribution> {
+  return request<ScoreDistribution>('/scoring/distribution');
 }

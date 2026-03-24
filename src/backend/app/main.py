@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import ingestion, settings, vulnerabilities
+from app.api import ingestion, scoring, settings, vulnerabilities
 from app.config import settings as app_settings
 from app.database import AsyncSessionLocal, engine
 from app.ingestion.scheduler import init_scheduler, shutdown_scheduler
@@ -74,6 +74,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(vulnerabilities.router, prefix="/api/v1")
 app.include_router(ingestion.router, prefix="/api/v1")
 app.include_router(settings.router, prefix="/api/v1")
+app.include_router(scoring.router, prefix="/api/v1")
 
 
 @app.get("/health")

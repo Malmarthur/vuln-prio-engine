@@ -17,6 +17,7 @@ export interface FilterParams {
   min_cvss?: string | number;
   date_from?: string;
   date_to?: string;
+  priority_level?: string;
 }
 
 interface Column {
@@ -28,6 +29,8 @@ interface Column {
 const COLUMNS: Column[] = [
   { key: null, label: 'Identifier' },
   { key: null, label: 'Summary' },
+  { key: null, label: 'Priority' },
+  { key: 'priority_score', label: 'Score' },
   { key: null, label: 'Severity' },
   { key: 'cvss_v31_score', label: 'CVSS' },
   { key: 'epss_score', label: 'EPSS' },

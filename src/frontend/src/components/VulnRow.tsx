@@ -14,6 +14,13 @@ const SEV_BADGE: Record<string, string> = {
   NONE: 'bg-gray-100 text-gray-600',
 };
 
+const PRIORITY_BADGE: Record<string, string> = {
+  V0: 'bg-red-100 text-red-700',
+  V1: 'bg-orange-100 text-orange-700',
+  V2: 'bg-yellow-100 text-yellow-800',
+  V3: 'bg-green-100 text-green-700',
+};
+
 function fmtDate(d: string | null | undefined): string {
   if (!d) return '\u2014';
   return new Date(d).toLocaleDateString();
@@ -62,6 +69,22 @@ export default function VulnRow({ vuln, expanded, onToggle }: VulnRowProps) {
       </td>
       <td className="px-3 py-2 text-sm text-gray-700 max-w-md truncate">
         {vuln.summary || '\u2014'}
+      </td>
+      <td className="px-3 py-2 text-center whitespace-nowrap">
+        {vuln.priority_level ? (
+          <span
+            className={`inline-block px-2 py-0.5 text-xs font-semibold rounded ${
+              PRIORITY_BADGE[vuln.priority_level] ?? 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            {vuln.priority_level}
+          </span>
+        ) : (
+          <span className="text-gray-300">&mdash;</span>
+        )}
+      </td>
+      <td className="px-3 py-2 text-sm text-right font-mono tabular-nums whitespace-nowrap">
+        {vuln.priority_score != null ? vuln.priority_score.toFixed(1) : '\u2014'}
       </td>
       <td className="px-3 py-2 text-center whitespace-nowrap">
         {sev ? (

@@ -26,7 +26,7 @@ router = APIRouter(prefix="/vulnerabilities", tags=["vulnerabilities"])
 async def list_vulnerabilities(
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
-    sort_by: Literal["published_date", "cvss_v31_score", "epss_score", "updated_at"] = "published_date",
+    sort_by: Literal["published_date", "cvss_v31_score", "epss_score", "updated_at", "priority_score", "priority_confidence"] = "published_date",
     sort_order: Literal["asc", "desc"] = "desc",
     search: Optional[str] = Query(None, max_length=200),
     severity: Optional[Literal["CRITICAL", "HIGH", "MEDIUM", "LOW", "NONE"]] = None,
@@ -35,6 +35,7 @@ async def list_vulnerabilities(
     min_cvss: Optional[float] = Query(None, ge=0.0, le=10.0),
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
+    priority_level: Optional[Literal["V0", "V1", "V2", "V3"]] = None,
     db: AsyncSession = Depends(get_db),
 ):
     try:
@@ -51,6 +52,7 @@ async def list_vulnerabilities(
             min_cvss=min_cvss,
             date_from=date_from,
             date_to=date_to,
+            priority_level=priority_level,
         )
         return PaginatedVulnerabilities(total=total, page=page, per_page=per_page, items=items)
     except Exception as exc:
