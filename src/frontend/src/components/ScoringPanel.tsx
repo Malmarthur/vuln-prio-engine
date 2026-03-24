@@ -6,6 +6,7 @@ import {
   fetchColumnValues,
   fetchScoreDistribution,
   fetchScoringProfile,
+  resetScoringProfile,
   runScoring,
   saveScoringProfile,
 } from '../api/client';
@@ -16,34 +17,33 @@ import {
 
 interface ColMeta {
   label: string;
+  groupLabel?: string;  // shown as group header when this column has fallbacks
   type: 'numeric' | 'boolean' | 'categorical';
   range?: [number, number];
 }
 
 const COLUMN_META: Record<string, ColMeta> = {
-  cvss_v31_score:     { label: 'CVSS v3.1 Score',     type: 'numeric',     range: [0, 10] },
-  cvss_v31_severity:  { label: 'CVSS v3.1 Severity',  type: 'categorical' },
-  cvss_v30_score:     { label: 'CVSS v3.0 Score',     type: 'numeric',     range: [0, 10] },
-  cvss_v30_severity:  { label: 'CVSS v3.0 Severity',  type: 'categorical' },
-  cvss_v40_score:     { label: 'CVSS v4.0 Score',     type: 'numeric',     range: [0, 10] },
-  cvss_v40_severity:  { label: 'CVSS v4.0 Severity',  type: 'categorical' },
-  cvss_v2_score:      { label: 'CVSS v2 Score',       type: 'numeric',     range: [0, 10] },
-  cvss_v2_severity:   { label: 'CVSS v2 Severity',    type: 'categorical' },
-  epss_score:         { label: 'EPSS Score',          type: 'numeric',     range: [0, 1] },
-  epss_percentile:    { label: 'EPSS Percentile',     type: 'numeric',     range: [0, 1] },
-  kev_known_exploited:{ label: 'KEV Exploited',       type: 'boolean' },
-  kev_ransomware_use: { label: 'KEV Ransomware',      type: 'boolean' },
-  euvd_exploitation:  { label: 'EUVD Exploitation',   type: 'categorical' },
+  cvss_v40_score:     { label: 'CVSS v4.0 Score',     groupLabel: 'CVSS Score',    type: 'numeric',     range: [0, 10] },
+  cvss_v31_score:     { label: 'CVSS v3.1 Score',                                  type: 'numeric',     range: [0, 10] },
+  cvss_v30_score:     { label: 'CVSS v3.0 Score',                                  type: 'numeric',     range: [0, 10] },
+  cvss_v2_score:      { label: 'CVSS v2 Score',                                    type: 'numeric',     range: [0, 10] },
+  cvss_v40_severity:  { label: 'CVSS v4.0 Severity',  groupLabel: 'CVSS Severity', type: 'categorical' },
+  cvss_v31_severity:  { label: 'CVSS v3.1 Severity',                               type: 'categorical' },
+  cvss_v30_severity:  { label: 'CVSS v3.0 Severity',                               type: 'categorical' },
+  cvss_v2_severity:   { label: 'CVSS v2 Severity',                                 type: 'categorical' },
+  epss_score:         { label: 'EPSS Score',                                        type: 'numeric',     range: [0, 1] },
+  epss_percentile:    { label: 'EPSS Percentile',                                  type: 'numeric',     range: [0, 1] },
+  kev_known_exploited:{ label: 'KEV Exploited',                                    type: 'boolean' },
+  kev_ransomware_use: { label: 'KEV Ransomware',                                   type: 'boolean' },
+  euvd_exploitation:  { label: 'EUVD Exploitation',                                type: 'categorical' },
 };
 
 const COLUMN_ORDER = [
-  'cvss_v31_score', 'cvss_v31_severity',
+  'cvss_v40_score', 'cvss_v31_score', 'cvss_v30_score', 'cvss_v2_score',
+  'cvss_v40_severity', 'cvss_v31_severity', 'cvss_v30_severity', 'cvss_v2_severity',
   'epss_score', 'epss_percentile',
   'kev_known_exploited', 'kev_ransomware_use',
   'euvd_exploitation',
-  'cvss_v30_score', 'cvss_v30_severity',
-  'cvss_v40_score', 'cvss_v40_severity',
-  'cvss_v2_score', 'cvss_v2_severity',
 ];
 
 const PRIORITY_COLORS: Record<string, { bar: string; badge: string }> = {
@@ -128,10 +128,7 @@ export default function ScoringPanel() {
       if (!prev) return prev;
       return {
         ...prev,
-        columns: {
-          ...prev.columns,
-          [col]: { ...prev.columns[col], ...patch },
-        },
+        columns: { ...prev.columns, [col]: { ...prev.columns[col], ...patch } },
       };
     });
   };
@@ -167,6 +164,67 @@ export default function ScoringPanel() {
     });
   };
 
+  // Move a fallback entry up (-1) or down (+1) within its group
+  const moveFallback = (col: string, fbIdx: number, direction: -1 | 1) => {
+    setProfile((prev) => {
+      if (!prev) return prev;
+      const cfg = prev.columns[col];
+      const fbs = [...(cfg.fallbacks ?? [])];
+      const newIdx = fbIdx + direction;
+      if (newIdx < 0 || newIdx >= fbs.length) return prev;
+      [fbs[fbIdx], fbs[newIdx]] = [fbs[newIdx], fbs[fbIdx]];
+      return { ...prev, columns: { ...prev.columns, [col]: { ...cfg, fallbacks: fbs } } };
+    });
+  };
+
+  // Remove a column from a group → it becomes a standalone disabled entry
+  const removeFallback = (groupCol: string, fbCol: string) => {
+    setProfile((prev) => {
+      if (!prev) return prev;
+      const groupCfg = prev.columns[groupCol];
+      const meta = COLUMN_META[fbCol];
+      return {
+        ...prev,
+        columns: {
+          ...prev.columns,
+          [groupCol]: { ...groupCfg, fallbacks: (groupCfg.fallbacks ?? []).filter((f) => f !== fbCol) },
+          [fbCol]: { enabled: false, weight: 0, type: meta?.type ?? 'numeric', range: meta?.range, default_value: 100 },
+        },
+      };
+    });
+  };
+
+  // Add a standalone column into a group → removes it from top-level
+  const addFallback = (groupCol: string, fbCol: string) => {
+    setProfile((prev) => {
+      if (!prev) return prev;
+      const groupCfg = prev.columns[groupCol];
+      const { [fbCol]: _removed, ...restColumns } = prev.columns;
+      return {
+        ...prev,
+        columns: {
+          ...restColumns,
+          [groupCol]: { ...groupCfg, fallbacks: [...(groupCfg.fallbacks ?? []), fbCol] },
+        },
+      };
+    });
+  };
+
+  const handleReset = async () => {
+    if (!confirm('Reset to default profile? This will overwrite your current configuration.')) return;
+    setSaving(true);
+    try {
+      const p = await resetScoringProfile();
+      setProfile(p);
+      setMsg('Profile reset to defaults');
+      setTimeout(() => setMsg(null), 2000);
+    } catch (e) {
+      setMsg(`Error: ${(e as Error).message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!profile) return;
     setSaving(true);
@@ -197,18 +255,6 @@ export default function ScoringPanel() {
   };
 
   // ---------------------------------------------------------------------------
-  // Render helpers (loaded state only)
-  // ---------------------------------------------------------------------------
-
-  const totalWeight = profile
-    ? Object.values(profile.columns)
-        .filter((c) => c.enabled)
-        .reduce((s, c) => s + c.weight, 0)
-    : 0;
-
-  const weightWarning = profile && Math.abs(totalWeight - 100) > 0.5;
-
-  // ---------------------------------------------------------------------------
   // Loading / error states
   // ---------------------------------------------------------------------------
 
@@ -229,6 +275,37 @@ export default function ScoringPanel() {
       </div>
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Derived state (computed at render time)
+  // ---------------------------------------------------------------------------
+
+  // Columns that appear as fallbacks → hidden from the main list
+  const allFallbacks = new Set<string>();
+  Object.values(profile.columns).forEach((cfg) => {
+    if (cfg.fallbacks) cfg.fallbacks.forEach((f) => allFallbacks.add(f));
+  });
+
+  // Standalone columns with same type as groupCol that can be added as fallback
+  const getAvailableForGroup = (groupCol: string): string[] => {
+    const groupCfg = profile.columns[groupCol];
+    if (!groupCfg) return [];
+    const inGroup = new Set([groupCol, ...(groupCfg.fallbacks ?? [])]);
+    return COLUMN_ORDER.filter(
+      (c) =>
+        !inGroup.has(c) &&
+        !allFallbacks.has(c) &&
+        c in profile.columns &&
+        profile.columns[c].type === groupCfg.type,
+    );
+  };
+
+  // Total weight of enabled top-level (non-fallback) columns
+  const totalWeight = Object.entries(profile.columns)
+    .filter(([col, c]) => c.enabled && !allFallbacks.has(col))
+    .reduce((s, [, c]) => s + c.weight, 0);
+
+  const weightWarning = Math.abs(totalWeight - 100) > 0.5;
 
   // ---------------------------------------------------------------------------
   // Render
@@ -262,8 +339,12 @@ export default function ScoringPanel() {
             const cfg = profile.columns[col];
             const meta = COLUMN_META[col];
             if (!cfg || !meta) return null;
+            if (allFallbacks.has(col)) return null; // shown inside its group
 
-            // Which values to show for boolean/categorical
+            const isGroup = (cfg.fallbacks?.length ?? 0) > 0;
+            const displayLabel = isGroup && meta.groupLabel ? meta.groupLabel : meta.label;
+
+            // Values to display for boolean/categorical mappings
             const cats: string[] =
               meta.type === 'boolean'
                 ? ['true', 'false']
@@ -294,7 +375,7 @@ export default function ScoringPanel() {
                   </button>
 
                   <span className={`text-sm font-medium ${cfg.enabled ? 'text-gray-900' : 'text-gray-400'}`}>
-                    {meta.label}
+                    {displayLabel}
                   </span>
                   <TypeBadge type={meta.type} />
 
@@ -333,9 +414,78 @@ export default function ScoringPanel() {
                   )}
                 </div>
 
+                {/* Fallback chain — always visible for groups */}
+                {isGroup && (
+                  <div className="mt-2 pl-12">
+                    <p className="text-xs text-gray-400 mb-1.5">Fallback chain (first non-null wins):</p>
+                    <div className="space-y-0.5">
+                      {/* Primary column */}
+                      <div className="flex items-center gap-2 text-xs text-gray-500 py-0.5">
+                        <span className="text-gray-300 w-4 text-center font-mono">1.</span>
+                        <span className="font-mono">{meta.label}</span>
+                        <span className="text-gray-300">(primary)</span>
+                      </div>
+                      {/* Fallbacks */}
+                      {(cfg.fallbacks ?? []).map((fbCol, idx) => {
+                        const fbMeta = COLUMN_META[fbCol];
+                        const fbCount = (cfg.fallbacks ?? []).length;
+                        return (
+                          <div key={fbCol} className="flex items-center gap-2 text-xs text-gray-600 py-0.5">
+                            <span className="text-gray-300 w-4 text-center font-mono">{idx + 2}.</span>
+                            <span className="font-mono">{fbMeta?.label ?? fbCol}</span>
+                            <div className="ml-auto flex items-center gap-0.5">
+                              <button
+                                onClick={() => moveFallback(col, idx, -1)}
+                                disabled={idx === 0}
+                                className="px-1 py-0.5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-25 disabled:cursor-not-allowed"
+                                title="Move up"
+                              >
+                                ↑
+                              </button>
+                              <button
+                                onClick={() => moveFallback(col, idx, 1)}
+                                disabled={idx === fbCount - 1}
+                                className="px-1 py-0.5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-25 disabled:cursor-not-allowed"
+                                title="Move down"
+                              >
+                                ↓
+                              </button>
+                              <button
+                                onClick={() => removeFallback(col, fbCol)}
+                                className="px-1.5 py-0.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                title="Remove from group"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {/* Add fallback dropdown */}
+                      {getAvailableForGroup(col).length > 0 && (
+                        <select
+                          value=""
+                          onChange={(e) => { if (e.target.value) addFallback(col, e.target.value); }}
+                          className="mt-1 text-xs rounded border-gray-200 text-gray-500 focus:border-gray-400 focus:ring-gray-400 py-0.5"
+                        >
+                          <option value="">+ Add fallback…</option>
+                          {getAvailableForGroup(col).map((fc) => (
+                            <option key={fc} value={fc}>{COLUMN_META[fc]?.label ?? fc}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Value mappings — boolean / categorical */}
                 {cfg.enabled && meta.type !== 'numeric' && (
                   <div className="mt-3 pl-12">
+                    {isGroup && (
+                      <p className="text-xs text-gray-400 mb-2">
+                        Value mapping applied to all columns in the group.
+                      </p>
+                    )}
                     {cats.length === 0 ? (
                       <p className="text-xs text-gray-400">
                         {meta.type === 'categorical'
@@ -419,6 +569,13 @@ export default function ScoringPanel() {
           <span className="text-xs text-gray-400">
             Saves the current profile, then scores all CVEs in the database.
           </span>
+          <button
+            disabled={saving || computing}
+            onClick={handleReset}
+            className="ml-auto px-3 py-1.5 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md disabled:opacity-50 transition-colors"
+          >
+            Reset to defaults
+          </button>
         </div>
       </div>
 
@@ -436,7 +593,7 @@ export default function ScoringPanel() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Priority counts */}
+            {/* Priority counts — V0 at top */}
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-3">Priority Levels</h3>
               <div className="space-y-2">
@@ -462,14 +619,14 @@ export default function ScoringPanel() {
               </div>
             </div>
 
-            {/* Score histogram */}
+            {/* Score histogram — highest bucket (most critical) at top */}
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-3">Score Distribution</h3>
               {distribution.score_histogram.length === 0 ? (
                 <p className="text-xs text-gray-400">No scored CVEs yet.</p>
               ) : (
                 <div className="space-y-1">
-                  {distribution.score_histogram.map((b) => (
+                  {distribution.score_histogram.slice().reverse().map((b) => (
                     <div key={b.bucket} className="space-y-0.5">
                       <div className="text-xs text-gray-400">{b.bucket}</div>
                       <HorizontalBar
@@ -483,14 +640,14 @@ export default function ScoringPanel() {
               )}
             </div>
 
-            {/* Confidence histogram */}
+            {/* Confidence histogram — highest bucket at top */}
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-3">Confidence Distribution</h3>
               {distribution.confidence_histogram.length === 0 ? (
                 <p className="text-xs text-gray-400">No scored CVEs yet.</p>
               ) : (
                 <div className="space-y-1">
-                  {distribution.confidence_histogram.map((b) => (
+                  {distribution.confidence_histogram.slice().reverse().map((b) => (
                     <div key={b.bucket} className="space-y-0.5">
                       <div className="text-xs text-gray-400">{b.bucket}%</div>
                       <HorizontalBar

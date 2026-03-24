@@ -10,6 +10,7 @@ class ColumnConfig(BaseModel):
     range: Optional[list[float]] = None          # numeric only, e.g. [0, 10]
     values: Optional[dict[str, float]] = None    # boolean/categorical value mappings
     default_value: float = Field(100, ge=0, le=100)
+    fallbacks: Optional[list[str]] = None        # ordered fallback columns (COALESCE chain)
 
 
 class ScoringProfile(BaseModel):

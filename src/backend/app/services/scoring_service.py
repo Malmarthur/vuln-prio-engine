@@ -48,19 +48,24 @@ _SAFE_VALUE_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
 DEFAULT_SCORING_PROFILE: dict[str, Any] = {
     "thresholds": {"V0": 76, "V1": 51, "V2": 26, "V3": 0},
     "columns": {
-        "cvss_v31_score":     {"enabled": True,  "weight": 30, "type": "numeric",     "range": [0, 10], "default_value": 100},
+        # CVSS score group: v4.0 preferred, falls back to v3.1 → v3.0 → v2
+        "cvss_v40_score": {
+            "enabled": True, "weight": 30, "type": "numeric", "range": [0, 10],
+            "default_value": 100,
+            "fallbacks": ["cvss_v31_score", "cvss_v30_score", "cvss_v2_score"],
+        },
+        # CVSS severity group: same precedence order
+        "cvss_v40_severity": {
+            "enabled": True, "weight": 15, "type": "categorical",
+            "values": {"CRITICAL": 100, "HIGH": 66, "MEDIUM": 33, "LOW": 0},
+            "default_value": 100,
+            "fallbacks": ["cvss_v31_severity", "cvss_v30_severity", "cvss_v2_severity"],
+        },
         "epss_score":         {"enabled": True,  "weight": 25, "type": "numeric",     "range": [0, 1],  "default_value": 100},
         "kev_known_exploited":{"enabled": True,  "weight": 20, "type": "boolean",     "values": {"true": 100, "false": 0}, "default_value": 100},
-        "cvss_v31_severity":  {"enabled": True,  "weight": 15, "type": "categorical", "values": {"CRITICAL": 100, "HIGH": 66, "MEDIUM": 33, "LOW": 0}, "default_value": 100},
         "euvd_exploitation":  {"enabled": True,  "weight": 10, "type": "categorical", "values": {}, "default_value": 100},
-        "cvss_v2_score":      {"enabled": False, "weight": 0,  "type": "numeric",     "range": [0, 10], "default_value": 100},
-        "cvss_v30_score":     {"enabled": False, "weight": 0,  "type": "numeric",     "range": [0, 10], "default_value": 100},
-        "cvss_v40_score":     {"enabled": False, "weight": 0,  "type": "numeric",     "range": [0, 10], "default_value": 100},
         "epss_percentile":    {"enabled": False, "weight": 0,  "type": "numeric",     "range": [0, 1],  "default_value": 100},
         "kev_ransomware_use": {"enabled": False, "weight": 0,  "type": "boolean",     "values": {}, "default_value": 100},
-        "cvss_v2_severity":   {"enabled": False, "weight": 0,  "type": "categorical", "values": {"HIGH": 100, "MEDIUM": 50, "LOW": 0}, "default_value": 100},
-        "cvss_v30_severity":  {"enabled": False, "weight": 0,  "type": "categorical", "values": {"CRITICAL": 100, "HIGH": 66, "MEDIUM": 33, "LOW": 0}, "default_value": 100},
-        "cvss_v40_severity":  {"enabled": False, "weight": 0,  "type": "categorical", "values": {"CRITICAL": 100, "HIGH": 66, "MEDIUM": 33, "LOW": 0}, "default_value": 100},
     },
 }
 
@@ -82,6 +87,7 @@ async def save_scoring_profile(session: AsyncSession, profile: ScoringProfile) -
 
 
 def _validate_profile(profile: ScoringProfile) -> None:
+    seen_as_fallback: dict[str, str] = {}  # fb_col -> primary_col
     for col_name, cfg in profile.columns.items():
         if col_name not in ELIGIBLE_COLUMNS:
             raise ValueError(f"Column '{col_name}' is not eligible for scoring")
@@ -89,6 +95,21 @@ def _validate_profile(profile: ScoringProfile) -> None:
             for key in cfg.values:
                 if not _SAFE_VALUE_RE.match(key):
                     raise ValueError(f"Unsafe category key '{key}' in column '{col_name}'")
+        if cfg.fallbacks:
+            for fb in cfg.fallbacks:
+                if fb not in ELIGIBLE_COLUMNS:
+                    raise ValueError(f"Fallback column '{fb}' is not eligible for scoring")
+                if fb == col_name:
+                    raise ValueError(f"Column '{col_name}' cannot be its own fallback")
+                if fb in seen_as_fallback:
+                    raise ValueError(
+                        f"Column '{fb}' is used as fallback by both '{seen_as_fallback[fb]}' and '{col_name}'"
+                    )
+                if fb in profile.columns:
+                    raise ValueError(
+                        f"Column '{fb}' appears both as a top-level entry and as fallback of '{col_name}'"
+                    )
+                seen_as_fallback[fb] = col_name
     if "V0" not in profile.thresholds or "V3" not in profile.thresholds:
         raise ValueError("Thresholds must include V0 and V3")
 
@@ -130,34 +151,48 @@ async def compute_scores(session: AsyncSession, profile: ScoringProfile) -> tupl
 def _build_update_sql(enabled: dict[str, ColumnConfig], thresholds: dict[str, float]) -> str:
     total_weight = sum(cfg.weight for cfg in enabled.values())
 
+    # Columns that appear as fallbacks are handled inside their group's COALESCE
+    all_fallbacks: set[str] = set()
+    for cfg in enabled.values():
+        if cfg.fallbacks:
+            all_fallbacks.update(cfg.fallbacks)
+
     score_terms: list[str] = []
     confidence_terms: list[str] = []
 
     for col, cfg in enabled.items():
+        if col in all_fallbacks:
+            continue  # handled inside the group that owns it
+
+        col_list = [col] + (cfg.fallbacks or [])
         norm_w = cfg.weight / total_weight
 
         if cfg.type == "numeric":
             lo, hi = cfg.range  # type: ignore[misc]
             span = hi - lo
-            raw_expr = f"({col}::float - {lo}) / {span} * 100"
+            parts = [f"({c}::float - {lo}) / {span} * 100" for c in col_list]
         elif cfg.type == "boolean":
             true_val = (cfg.values or {}).get("true", 100)
             false_val = (cfg.values or {}).get("false", 0)
-            raw_expr = f"CASE WHEN {col} = true THEN {true_val} WHEN {col} = false THEN {false_val} ELSE NULL END"
+            parts = [
+                f"CASE WHEN {c} = true THEN {true_val} WHEN {c} = false THEN {false_val} ELSE NULL END"
+                for c in col_list
+            ]
         else:  # categorical
             if not cfg.values:
-                # No mappings defined → always use default
-                raw_expr = "NULL"
+                parts = ["NULL"]
             else:
-                cases = " ".join(
-                    f"WHEN '{cat}' THEN {val}"
-                    for cat, val in cfg.values.items()
-                )
-                raw_expr = f"CASE {col} {cases} ELSE NULL END"
+                cases = " ".join(f"WHEN '{cat}' THEN {val}" for cat, val in cfg.values.items())
+                parts = [f"CASE {c} {cases} ELSE NULL END" for c in col_list]
 
-        score_terms.append(f"COALESCE({raw_expr}, {cfg.default_value}) * {norm_w}")
+        # COALESCE across the group (or single expression), then fall back to default_value
+        inner = f"COALESCE({', '.join(parts)})" if len(parts) > 1 else parts[0]
+        score_terms.append(f"COALESCE({inner}, {cfg.default_value}) * {norm_w}")
+
+        # Confidence: this group has real data if ANY column in the chain is non-null
+        null_checks = " OR ".join(f"{c} IS NOT NULL" for c in col_list)
         confidence_terms.append(
-            f"CASE WHEN {col} IS NOT NULL THEN {cfg.weight} ELSE 0 END"
+            f"CASE WHEN {null_checks} THEN {cfg.weight} ELSE 0 END"
         )
 
     score_expr = " + ".join(score_terms)

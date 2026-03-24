@@ -95,6 +95,7 @@ export interface ColumnConfig {
   range?: [number, number];
   values?: Record<string, number>;
   default_value: number;
+  fallbacks?: string[];
 }
 
 export interface ScoringProfile {
@@ -193,6 +194,10 @@ export function updateSetting(key: string, value: string): Promise<Record<string
 
 export function fetchScoringProfile(): Promise<ScoringProfile> {
   return request<ScoringProfile>('/scoring/profile');
+}
+
+export function resetScoringProfile(): Promise<ScoringProfile> {
+  return request<ScoringProfile>('/scoring/profile', { method: 'DELETE' });
 }
 
 export function saveScoringProfile(profile: ScoringProfile): Promise<ScoringProfile> {

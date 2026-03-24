@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.schemas.scoring import ScoreDistribution, ScoringProfile, ScoringRunResponse
 from app.services.scoring_service import (
+    DEFAULT_SCORING_PROFILE,
     ELIGIBLE_COLUMNS,
     compute_scores,
     get_column_distinct_values,
@@ -13,6 +14,7 @@ from app.services.scoring_service import (
     get_scoring_profile,
     save_scoring_profile,
 )
+from app.services.vulnerability_service import delete_setting
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,17 @@ async def update_profile(profile: ScoringProfile, db: AsyncSession = Depends(get
     except Exception as exc:
         logger.exception("Failed to save scoring profile")
         raise HTTPException(status_code=500, detail="Failed to save scoring profile") from exc
+
+
+@router.delete("/profile", response_model=ScoringProfile)
+async def reset_profile(db: AsyncSession = Depends(get_db)):
+    """Delete the custom scoring profile — the default profile is returned on next GET."""
+    try:
+        await delete_setting(db, "scoring_profile")
+        return ScoringProfile.model_validate(DEFAULT_SCORING_PROFILE)
+    except Exception as exc:
+        logger.exception("Failed to reset scoring profile")
+        raise HTTPException(status_code=500, detail="Failed to reset scoring profile") from exc
 
 
 @router.post("/run", response_model=ScoringRunResponse)
