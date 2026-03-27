@@ -24,19 +24,19 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 ELIGIBLE_COLUMNS: dict[str, dict[str, Any]] = {
-    "cvss_v2_score":      {"type": "numeric",     "range": [0, 10]},
-    "cvss_v30_score":     {"type": "numeric",     "range": [0, 10]},
-    "cvss_v31_score":     {"type": "numeric",     "range": [0, 10]},
-    "cvss_v40_score":     {"type": "numeric",     "range": [0, 10]},
-    "epss_score":         {"type": "numeric",     "range": [0, 1]},
-    "epss_percentile":    {"type": "numeric",     "range": [0, 1]},
-    "kev_known_exploited":{"type": "boolean"},
-    "kev_ransomware_use": {"type": "boolean"},
-    "cvss_v2_severity":   {"type": "categorical"},
-    "cvss_v30_severity":  {"type": "categorical"},
-    "cvss_v31_severity":  {"type": "categorical"},
-    "cvss_v40_severity":  {"type": "categorical"},
-    "euvd_exploitation":  {"type": "categorical"},
+    "cvss_v2_score":      {"type": "numeric",     "range": [0, 10],  "label": "CVSS v2 Score",      "group": "cvss_score"},
+    "cvss_v30_score":     {"type": "numeric",     "range": [0, 10],  "label": "CVSS v3.0 Score",    "group": "cvss_score"},
+    "cvss_v31_score":     {"type": "numeric",     "range": [0, 10],  "label": "CVSS v3.1 Score",    "group": "cvss_score"},
+    "cvss_v40_score":     {"type": "numeric",     "range": [0, 10],  "label": "CVSS v4.0 Score",    "group": "cvss_score"},
+    "epss_score":         {"type": "numeric",     "range": [0, 1],   "label": "EPSS Score"},
+    "epss_percentile":    {"type": "numeric",     "range": [0, 1],   "label": "EPSS Percentile"},
+    "kev_known_exploited":{"type": "boolean",                         "label": "KEV Exploited"},
+    "kev_ransomware_use": {"type": "boolean",                         "label": "KEV Ransomware"},
+    "cvss_v2_severity":   {"type": "categorical",                     "label": "CVSS v2 Severity",   "group": "cvss_severity"},
+    "cvss_v30_severity":  {"type": "categorical",                     "label": "CVSS v3.0 Severity", "group": "cvss_severity"},
+    "cvss_v31_severity":  {"type": "categorical",                     "label": "CVSS v3.1 Severity", "group": "cvss_severity"},
+    "cvss_v40_severity":  {"type": "categorical",                     "label": "CVSS v4.0 Severity", "group": "cvss_severity"},
+    "euvd_exploitation":  {"type": "categorical",                     "label": "EUVD Exploitation"},
 }
 
 _SAFE_VALUE_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
@@ -50,22 +50,22 @@ DEFAULT_SCORING_PROFILE: dict[str, Any] = {
     "columns": {
         # CVSS score group: v4.0 preferred, falls back to v3.1 → v3.0 → v2
         "cvss_v40_score": {
-            "enabled": True, "weight": 30, "type": "numeric", "range": [0, 10],
+            "enabled": True, "weight": 40, "type": "numeric", "range": [0, 10],
+            "label": "CVSS Score",
             "default_value": 100,
             "fallbacks": ["cvss_v31_score", "cvss_v30_score", "cvss_v2_score"],
         },
-        # CVSS severity group: same precedence order
-        "cvss_v40_severity": {
-            "enabled": True, "weight": 15, "type": "categorical",
-            "values": {"CRITICAL": 100, "HIGH": 66, "MEDIUM": 33, "LOW": 0},
+        "epss_score": {
+            "enabled": True, "weight": 35, "type": "numeric", "range": [0, 1],
+            "label": "EPSS Score",
             "default_value": 100,
-            "fallbacks": ["cvss_v31_severity", "cvss_v30_severity", "cvss_v2_severity"],
         },
-        "epss_score":         {"enabled": True,  "weight": 25, "type": "numeric",     "range": [0, 1],  "default_value": 100},
-        "kev_known_exploited":{"enabled": True,  "weight": 20, "type": "boolean",     "values": {"true": 100, "false": 0}, "default_value": 100},
-        "euvd_exploitation":  {"enabled": True,  "weight": 10, "type": "categorical", "values": {}, "default_value": 100},
-        "epss_percentile":    {"enabled": False, "weight": 0,  "type": "numeric",     "range": [0, 1],  "default_value": 100},
-        "kev_ransomware_use": {"enabled": False, "weight": 0,  "type": "boolean",     "values": {}, "default_value": 100},
+        "kev_known_exploited": {
+            "enabled": True, "weight": 25, "type": "boolean",
+            "label": "KEV Exploited",
+            "values": {"true": 100, "false": 0},
+            "default_value": 100,
+        },
     },
 }
 

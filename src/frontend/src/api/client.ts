@@ -92,10 +92,18 @@ export interface ColumnConfig {
   enabled: boolean;
   weight: number;
   type: 'numeric' | 'boolean' | 'categorical';
+  label?: string;
   range?: [number, number];
   values?: Record<string, number>;
   default_value: number;
   fallbacks?: string[];
+}
+
+export interface EligibleColumn {
+  type: 'numeric' | 'boolean' | 'categorical';
+  range?: [number, number];
+  label: string;
+  group?: string;
 }
 
 export interface ScoringProfile {
@@ -217,4 +225,8 @@ export function fetchColumnValues(column: string): Promise<{ column: string; val
 
 export function fetchScoreDistribution(): Promise<ScoreDistribution> {
   return request<ScoreDistribution>('/scoring/distribution');
+}
+
+export function fetchEligibleColumns(): Promise<Record<string, EligibleColumn>> {
+  return request<Record<string, EligibleColumn>>('/scoring/eligible-columns');
 }

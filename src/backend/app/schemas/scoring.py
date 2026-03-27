@@ -7,7 +7,8 @@ class ColumnConfig(BaseModel):
     enabled: bool = False
     weight: float = Field(0, ge=0)
     type: str  # "numeric" | "boolean" | "categorical"
-    range: Optional[list[float]] = None          # numeric only, e.g. [0, 10]
+    label: Optional[str] = None              # user-customizable display name
+    range: Optional[list[float]] = None      # numeric only, e.g. [0, 10]
     values: Optional[dict[str, float]] = None    # boolean/categorical value mappings
     default_value: float = Field(100, ge=0, le=100)
     fallbacks: Optional[list[str]] = None        # ordered fallback columns (COALESCE chain)

@@ -85,3 +85,9 @@ async def distribution(db: AsyncSession = Depends(get_db)):
     except Exception as exc:
         logger.exception("Failed to fetch score distribution")
         raise HTTPException(status_code=500, detail="Failed to fetch distribution") from exc
+
+
+@router.get("/eligible-columns")
+async def get_eligible_columns():
+    """Return all columns eligible for scoring with their type metadata."""
+    return ELIGIBLE_COLUMNS
