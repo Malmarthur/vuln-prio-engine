@@ -16,6 +16,7 @@ from app.schemas.ingestion import (
     TriggerResponse,
 )
 from app.services.vulnerability_service import (
+    cancel_stale_logs,
     create_pending_log,
     get_ingestion_logs,
     get_latest_ingestion_status,
@@ -101,21 +102,30 @@ async def trigger_ingestion(body: TriggerRequest):
 
 
 @router.post("/cancel", response_model=TriggerResponse)
-async def cancel_ingestion(body: TriggerRequest):
+async def cancel_ingestion(body: TriggerRequest, db: AsyncSession = Depends(get_db)):
     if body.source not in VALID_SOURCES:
         raise HTTPException(
             status_code=422,
             detail=f"Invalid source '{body.source}'. Must be one of: {sorted(VALID_SOURCES)}",
         )
     task = _running_tasks.get(body.source)
-    if not task or task.done():
-        raise HTTPException(
-            status_code=404,
-            detail=f"No running ingestion for '{body.source}'",
-        )
-    task.cancel()
-    logger.info("Cancel requested for source '%s'", body.source)
-    return TriggerResponse(status="cancelling", source=body.source)
+    if task and not task.done():
+        task.cancel()
+        logger.info("Cancel requested for source '%s'", body.source)
+        return TriggerResponse(status="cancelling", source=body.source)
+
+    # No live task — clean up any stale "running"/"pending" DB logs left behind
+    # when a task ended without successfully committing its final status.
+    sources_to_clean = ALL_SOURCES if body.source == "all" else [body.source]
+    cleaned = await cancel_stale_logs(db, sources_to_clean)
+    if cleaned > 0:
+        logger.info("Cleaned %d stale log(s) for source '%s'", cleaned, body.source)
+        return TriggerResponse(status="cancelling", source=body.source)
+
+    raise HTTPException(
+        status_code=404,
+        detail=f"No running ingestion for '{body.source}'",
+    )
 
 
 @router.get("/status", response_model=list[IngestionLogResponse])

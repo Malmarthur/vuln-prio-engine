@@ -189,14 +189,20 @@ export default function SettingsPanel() {
     }
   };
 
+  const refreshLogs = () =>
+    fetchIngestionLogs({ page: 1, per_page: 20 })
+      .then((l) => { setLogs(l); setLogPage(1); })
+      .catch(console.error);
+
   const handleTrigger = async (source: string) => {
     setTriggering(source);
     try {
       await triggerIngestion(source);
       setMsg(`Triggered ${source} ingestion`);
       setTimeout(() => setMsg(null), 3000);
-      // Immediately refresh status, then start polling
+      // Immediately refresh both status and logs, then start polling
       fetchIngestionStatus().then(setStatus).catch(console.error);
+      refreshLogs();
       setPolling(true);
     } catch (e) {
       setMsg(`Error: ${(e as Error).message}`);
@@ -211,10 +217,16 @@ export default function SettingsPanel() {
       await cancelIngestion(source);
       setMsg(`Cancelling ${source} ingestion...`);
       setTimeout(() => setMsg(null), 3000);
-      fetchIngestionStatus().then(setStatus).catch(console.error);
     } catch (e) {
-      setMsg(`Error: ${(e as Error).message}`);
+      // 404 means the task already ended but the DB wasn't updated (stale log);
+      // silently refresh status instead of showing a confusing error.
+      const msg = (e as Error).message;
+      if (!msg.includes('404') && !msg.toLowerCase().includes('no running')) {
+        setMsg(`Error: ${msg}`);
+      }
     } finally {
+      fetchIngestionStatus().then(setStatus).catch(console.error);
+      refreshLogs();
       setCancelling(null);
     }
   };
