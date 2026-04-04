@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ColumnConfig,
   EligibleColumn,
@@ -31,6 +31,10 @@ export default function ScoringPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [computing, setComputing] = useState(false);
+  const [elapsedMs, setElapsedMs] = useState<number>(0);
+  const [lastComputeMs, setLastComputeMs] = useState<number | null>(null);
+  const computeStartRef = useRef<number | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
@@ -165,10 +169,17 @@ export default function ScoringPanel() {
   const handleCompute = async () => {
     if (!profile) return;
     setComputing(true);
+    setElapsedMs(0);
+    computeStartRef.current = performance.now();
+    timerRef.current = setInterval(() => {
+      setElapsedMs(performance.now() - (computeStartRef.current ?? performance.now()));
+    }, 100);
     try {
       // Save first, then compute
       await saveScoringProfile(profile);
       const res = await runScoring();
+      const elapsed = performance.now() - (computeStartRef.current ?? performance.now());
+      setLastComputeMs(elapsed);
       setMsg(`Scored ${res.rows_updated.toLocaleString()} CVEs`);
       setTimeout(() => setMsg(null), 3000);
       const d = await fetchScoreDistribution();
@@ -176,6 +187,7 @@ export default function ScoringPanel() {
     } catch (e) {
       setMsg(`Error: ${(e as Error).message}`);
     } finally {
+      if (timerRef.current) clearInterval(timerRef.current);
       setComputing(false);
     }
   };
@@ -336,10 +348,28 @@ export default function ScoringPanel() {
           <button
             disabled={saving || computing}
             onClick={handleCompute}
-            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 disabled:opacity-50 transition-colors"
+            className="relative px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 disabled:opacity-50 transition-colors min-w-[160px]"
           >
-            {computing ? 'Computing…' : 'Compute Scores'}
+            {computing ? (
+              <span className="flex items-center gap-2 justify-center">
+                <span className="inline-block w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span className="font-mono tabular-nums">
+                  {(elapsedMs / 1000).toFixed(1)}s
+                </span>
+              </span>
+            ) : (
+              'Compute Scores'
+            )}
           </button>
+          {!computing && lastComputeMs !== null && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded-md">
+              <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="12" cy="12" r="10" />
+                <path strokeLinecap="round" d="M12 6v6l3 3" />
+              </svg>
+              {(lastComputeMs / 1000).toFixed(2)}s
+            </span>
+          )}
           <span className="text-xs text-gray-400">
             Saves the current profile, then scores all CVEs in the database.
           </span>
