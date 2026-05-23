@@ -1,4 +1,12 @@
+import { useMemo } from 'react';
 import { fillBuckets } from './helpers';
+
+// Layout constants never change — defined at module level to keep useMemo deps clean
+const W = 320, H = 110;
+const pL = 36, pR = 8, pT = 8, pB = 18;
+const iW = W - pL - pR;
+const iH = H - pT - pB;
+const bottomY = pT + iH;
 
 /** Confidence distribution — simple indigo line chart. */
 export default function ConfidenceLineChart({
@@ -6,20 +14,18 @@ export default function ConfidenceLineChart({
 }: {
   data: Array<{ bucket: string; count: number }>;
 }) {
-  const W = 320, H = 110;
-  const pL = 36, pR = 8, pT = 8, pB = 18;
-  const iW = W - pL - pR;
-  const iH = H - pT - pB;
-  const bottomY = pT + iH;
-
-  const pts = fillBuckets(data);
-  const maxC = Math.max(...pts.map((p) => p.count), 1);
+  const { pts, maxC, ptStr, areaStr } = useMemo(() => {
+    const pts = fillBuckets(data);
+    const maxC = Math.max(...pts.map((p) => p.count), 1);
+    const sx = (x: number) => pL + (x / 100) * iW;
+    const sy = (c: number) => pT + iH - (c / maxC) * iH;
+    const ptStr = pts.map((p) => `${sx(p.x)},${sy(p.count)}`).join(' ');
+    const areaStr = `${sx(pts[0].x)},${bottomY} ${ptStr} ${sx(pts[pts.length - 1].x)},${bottomY}`;
+    return { pts, maxC, ptStr, areaStr };
+  }, [data]);
 
   const sx = (x: number) => pL + (x / 100) * iW;
   const sy = (c: number) => pT + iH - (c / maxC) * iH;
-
-  const ptStr = pts.map((p) => `${sx(p.x)},${sy(p.count)}`).join(' ');
-  const areaStr = `${sx(pts[0].x)},${bottomY} ${ptStr} ${sx(pts[pts.length - 1].x)},${bottomY}`;
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full overflow-visible">

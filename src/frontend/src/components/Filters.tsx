@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export interface FilterParams {
   page: number;
@@ -26,6 +26,13 @@ const PRIORITIES = ['V0', 'V1', 'V2', 'V3'];
 export default function Filters({ filters, onChange }: FiltersProps) {
   const [searchInput, setSearchInput] = useState(filters.search || '');
 
+  // Keep refs up-to-date so the debounce effect always reads the latest values
+  // without re-running when filters/onChange change (that would reset the timer)
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
   // Sync local state when parent resets filters (e.g. Reset button)
   useEffect(() => {
     setSearchInput(filters.search || '');
@@ -34,12 +41,13 @@ export default function Filters({ filters, onChange }: FiltersProps) {
   // Debounce search input: propagate to parent after 300ms of no typing
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (searchInput !== (filters.search || '')) {
-        onChange({ ...filters, search: searchInput, page: 1 });
+      const f = filtersRef.current;
+      if (searchInput !== (f.search || '')) {
+        onChangeRef.current({ ...f, search: searchInput, page: 1 });
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchInput]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchInput]);
 
   const set = (key: keyof FilterParams, value: string | number | boolean) =>
     onChange({ ...filters, [key]: value, page: 1 });

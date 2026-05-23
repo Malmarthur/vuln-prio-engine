@@ -1,9 +1,9 @@
-import React from 'react';
+import { type ReactNode } from 'react';
 
 interface LayoutProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 const TABS = [

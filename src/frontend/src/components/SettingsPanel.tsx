@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { getErrorMessage } from '../lib/utils';
 import {
   cancelIngestion,
   fetchIngestionLogs,
@@ -119,6 +120,8 @@ export default function SettingsPanel() {
   const [errorModal, setErrorModal] = useState<string | null>(null);
   const pollingRef = useRef(polling);
   pollingRef.current = polling;
+  // Prevents concurrent in-flight polling requests when a tick is slow
+  const pollingInFlight = useRef(false);
 
   // Load everything on mount
   useEffect(() => {
@@ -126,7 +129,7 @@ export default function SettingsPanel() {
       fetchSettings().then(setSettings),
       fetchIngestionStatus().then(setStatus),
     ])
-      .catch((e) => setError((e as Error).message))
+      .catch((e) => setError(getErrorMessage(e)))
       .finally(() => setLoading(false));
   }, []);
 
@@ -136,32 +139,41 @@ export default function SettingsPanel() {
       .catch(console.error);
   }, [logPage]);
 
-  // Auto-poll while any source is running or pending
+  // Auto-poll while any source is running or pending.
+  // Guard flag prevents concurrent in-flight requests if a tick takes > 2s.
   useEffect(() => {
     if (!polling) return;
 
-    const id = setInterval(() => {
-      fetchIngestionStatus()
-        .then((data) => {
-          setStatus(data);
-          const active = data.some(
-            (s) => s.status === 'running' || s.status === 'pending',
-          );
-          if (!active) {
-            setPolling(false);
-            // Refresh logs when all done
-            fetchIngestionLogs({ page: 1, per_page: 20 })
-              .then((l) => {
-                setLogs(l);
-                setLogPage(1);
-              })
-              .catch(console.error);
+    const id = setInterval(async () => {
+      if (pollingInFlight.current) return;
+      pollingInFlight.current = true;
+      try {
+        const data = await fetchIngestionStatus();
+        setStatus(data);
+        const active = data.some(
+          (s) => s.status === 'running' || s.status === 'pending',
+        );
+        if (!active) {
+          setPolling(false);
+          try {
+            const l = await fetchIngestionLogs({ page: 1, per_page: 20 });
+            setLogs(l);
+            setLogPage(1);
+          } catch {
+            // Non-critical — log list will refresh on next manual action
           }
-        })
-        .catch(console.error);
+        }
+      } catch {
+        // Network error during polling — will retry on next tick
+      } finally {
+        pollingInFlight.current = false;
+      }
     }, 2000);
 
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      pollingInFlight.current = false;
+    };
   }, [polling]);
 
   const handleSaveSetting = async (key: string, value: number | string) => {
@@ -171,7 +183,7 @@ export default function SettingsPanel() {
       setMsg(`Saved ${key}`);
       setTimeout(() => setMsg(null), 2000);
     } catch (e) {
-      setMsg(`Error: ${(e as Error).message}`);
+      setMsg(`Error: ${getErrorMessage(e)}`);
     }
   };
 
@@ -185,7 +197,7 @@ export default function SettingsPanel() {
       await updateSetting(key, String(next));
       setSettings((s) => ({ ...s, [key]: next }));
     } catch (e) {
-      setMsg(`Error: ${(e as Error).message}`);
+      setMsg(`Error: ${getErrorMessage(e)}`);
     }
   };
 
@@ -205,7 +217,7 @@ export default function SettingsPanel() {
       refreshLogs();
       setPolling(true);
     } catch (e) {
-      setMsg(`Error: ${(e as Error).message}`);
+      setMsg(`Error: ${getErrorMessage(e)}`);
     } finally {
       setTriggering(null);
     }
@@ -220,7 +232,7 @@ export default function SettingsPanel() {
     } catch (e) {
       // 404 means the task already ended but the DB wasn't updated (stale log);
       // silently refresh status instead of showing a confusing error.
-      const msg = (e as Error).message;
+      const msg = getErrorMessage(e);
       if (!msg.includes('404') && !msg.toLowerCase().includes('no running')) {
         setMsg(`Error: ${msg}`);
       }
@@ -304,14 +316,14 @@ export default function SettingsPanel() {
                   <input
                     type="number"
                     min="1"
-                    value={settings[intervalKey] ?? ''}
+                    value={settings[intervalKey] != null ? String(settings[intervalKey]) : ''}
                     onChange={(e) =>
                       setSettings((s) => ({ ...s, [intervalKey]: e.target.value }))
                     }
                     className="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-gray-500 focus:ring-gray-500"
                   />
                   <button
-                    onClick={() => handleSaveSetting(intervalKey, settings[intervalKey])}
+                    onClick={() => handleSaveSetting(intervalKey, settings[intervalKey] as string | number)}
                     className="px-3 py-1.5 bg-gray-900 text-white text-sm rounded-md hover:bg-gray-800 transition-colors"
                   >
                     Save
