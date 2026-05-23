@@ -153,12 +153,12 @@ function toQuery(params: QueryParams): string {
 
 // --- Public API functions ---
 
-export function fetchVulnerabilities(params: QueryParams = {}): Promise<PaginatedVulnerabilities> {
-  return request<PaginatedVulnerabilities>(`/vulnerabilities${toQuery(params)}`);
+export function fetchVulnerabilities(params: QueryParams = {}, signal?: AbortSignal): Promise<PaginatedVulnerabilities> {
+  return request<PaginatedVulnerabilities>(`/vulnerabilities${toQuery(params)}`, { signal });
 }
 
-export function fetchVulnerability(cveId: string): Promise<VulnerabilityDetail> {
-  return request<VulnerabilityDetail>(`/vulnerabilities/${encodeURIComponent(cveId)}`);
+export function fetchVulnerability(cveId: string, signal?: AbortSignal): Promise<VulnerabilityDetail> {
+  return request<VulnerabilityDetail>(`/vulnerabilities/${encodeURIComponent(cveId)}`, { signal });
 }
 
 export function fetchStats(): Promise<VulnerabilityStats> {

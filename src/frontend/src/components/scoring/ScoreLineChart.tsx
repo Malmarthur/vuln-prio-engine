@@ -1,4 +1,12 @@
+import { useMemo } from 'react';
 import { fillBuckets } from './helpers';
+
+// Layout constants never change — defined at module level to keep useMemo deps clean
+const W = 320, H = 110;
+const pL = 36, pR = 8, pT = 8, pB = 18;
+const iW = W - pL - pR;
+const iH = H - pT - pB;
+const bottomY = pT + iH;
 
 /** Score distribution — colored by priority zone. */
 export default function ScoreLineChart({
@@ -8,28 +16,25 @@ export default function ScoreLineChart({
   data: Array<{ bucket: string; count: number }>;
   thresholds: Record<string, number>;
 }) {
-  const W = 320, H = 110;
-  const pL = 36, pR = 8, pT = 8, pB = 18;
-  const iW = W - pL - pR;
-  const iH = H - pT - pB;
-  const bottomY = pT + iH;
-
-  const pts = fillBuckets(data);
-  const maxC = Math.max(...pts.map((p) => p.count), 1);
+  const { pts, maxC, ptStr, areaStr, zones } = useMemo(() => {
+    const pts = fillBuckets(data);
+    const maxC = Math.max(...pts.map((p) => p.count), 1);
+    const sx = (x: number) => pL + (x / 100) * iW;
+    const sy = (c: number) => pT + iH - (c / maxC) * iH;
+    const ptStr = pts.map((p) => `${sx(p.x)},${sy(p.count)}`).join(' ');
+    const areaStr = `${sx(pts[0].x)},${bottomY} ${ptStr} ${sx(pts[pts.length - 1].x)},${bottomY}`;
+    const t = thresholds;
+    const zones = [
+      { id: 'v3', lo: 0,             hi: t['V2'] ?? 26, stroke: '#16a34a', fill: '#22c55e' },
+      { id: 'v2', lo: t['V2'] ?? 26, hi: t['V1'] ?? 51, stroke: '#ca8a04', fill: '#eab308' },
+      { id: 'v1', lo: t['V1'] ?? 51, hi: t['V0'] ?? 76, stroke: '#ea580c', fill: '#f97316' },
+      { id: 'v0', lo: t['V0'] ?? 76, hi: 100,            stroke: '#dc2626', fill: '#ef4444' },
+    ];
+    return { pts, maxC, ptStr, areaStr, zones };
+  }, [data, thresholds]);
 
   const sx = (x: number) => pL + (x / 100) * iW;
   const sy = (c: number) => pT + iH - (c / maxC) * iH;
-
-  const ptStr = pts.map((p) => `${sx(p.x)},${sy(p.count)}`).join(' ');
-  const areaStr = `${sx(pts[0].x)},${bottomY} ${ptStr} ${sx(pts[pts.length - 1].x)},${bottomY}`;
-
-  const t = thresholds;
-  const zones = [
-    { id: 'v3', lo: 0,             hi: t['V2'] ?? 26, stroke: '#16a34a', fill: '#22c55e' },
-    { id: 'v2', lo: t['V2'] ?? 26, hi: t['V1'] ?? 51, stroke: '#ca8a04', fill: '#eab308' },
-    { id: 'v1', lo: t['V1'] ?? 51, hi: t['V0'] ?? 76, stroke: '#ea580c', fill: '#f97316' },
-    { id: 'v0', lo: t['V0'] ?? 76, hi: 100,            stroke: '#dc2626', fill: '#ef4444' },
-  ];
 
   const getZone = (x: number) =>
     zones.find((z) => x >= z.lo && x < z.hi) ?? zones[zones.length - 1];
@@ -59,7 +64,7 @@ export default function ScoreLineChart({
 
       {/* Threshold vertical dashes */}
       {['V0', 'V1', 'V2'].map((level) => {
-        const tv = t[level];
+        const tv = thresholds[level];
         if (tv == null) return null;
         return (
           <line key={level} x1={sx(tv)} y1={pT} x2={sx(tv)} y2={bottomY}

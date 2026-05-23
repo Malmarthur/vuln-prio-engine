@@ -1,5 +1,6 @@
 import { useEffect, useState, ReactNode } from 'react';
 import { fetchVulnerability, VulnerabilityDetail } from '../api/client';
+import { getErrorMessage } from '../lib/utils';
 
 interface VulnDetailProps {
   cveId: string;
@@ -20,6 +21,18 @@ interface CvssRowProps {
 function fmtDate(d: string | null | undefined): string {
   if (!d) return '\u2014';
   return new Date(d).toLocaleDateString();
+}
+
+/** Return the URL only if it uses http or https — prevents javascript: / data: injection */
+function safeHref(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const { protocol } = new URL(url);
+    if (protocol === 'http:' || protocol === 'https:') return url;
+  } catch {
+    // invalid URL
+  }
+  return null;
 }
 
 function Section({ title, children }: SectionProps) {
@@ -56,9 +69,17 @@ export default function VulnDetail({ cveId }: VulnDetailProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchVulnerability(cveId)
+    const controller = new AbortController();
+    setVuln(null);
+    setError(null);
+    fetchVulnerability(cveId, controller.signal)
       .then(setVuln)
-      .catch((e: Error) => setError(e.message));
+      .catch((e: unknown) => {
+        if ((e as Error).name !== 'AbortError') {
+          setError(getErrorMessage(e));
+        }
+      });
+    return () => controller.abort();
   }, [cveId]);
 
   if (error) {
@@ -80,6 +101,8 @@ export default function VulnDetail({ cveId }: VulnDetailProps) {
   const refs = vuln.references || [];
   const cwes = vuln.cwe_ids || [];
   const products = vuln.affected_products || [];
+  const euvdHref = safeHref(vuln.euvd_source_url);
+  const nvdHref = safeHref(vuln.nvd_source_url);
 
   return (
     <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 space-y-4">
@@ -141,8 +164,8 @@ export default function VulnDetail({ cveId }: VulnDetailProps) {
           <p className="text-sm text-gray-700">
             {vuln.euvd_id}
             {vuln.euvd_exploitation && <> &middot; {vuln.euvd_exploitation}</>}
-            {vuln.euvd_source_url && (
-              <> &middot; <a href={vuln.euvd_source_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Source</a></>
+            {euvdHref && (
+              <> &middot; <a href={euvdHref} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Source</a></>
             )}
           </p>
         </Section>
@@ -179,16 +202,23 @@ export default function VulnDetail({ cveId }: VulnDetailProps) {
       {refs.length > 0 && (
         <Section title={`References (${refs.length})`}>
           <div className="max-h-32 overflow-y-auto space-y-0.5">
-            {refs.slice(0, 10).map((r, i) => (
-              <div key={i} className="text-sm truncate">
-                <a href={r.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
-                  {r.url}
-                </a>
-                {r.tags && r.tags.length > 0 && (
-                  <span className="ml-2 text-xs text-gray-400">{r.tags.join(', ')}</span>
-                )}
-              </div>
-            ))}
+            {refs.slice(0, 10).map((r, i) => {
+              const href = safeHref(r.url);
+              return (
+                <div key={i} className="text-sm truncate">
+                  {href ? (
+                    <a href={href} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                      {r.url}
+                    </a>
+                  ) : (
+                    <span className="text-gray-500">{r.url}</span>
+                  )}
+                  {r.tags && r.tags.length > 0 && (
+                    <span className="ml-2 text-xs text-gray-400">{r.tags.join(', ')}</span>
+                  )}
+                </div>
+              );
+            })}
             {refs.length > 10 && (
               <div className="text-xs text-gray-400">... and {refs.length - 10} more</div>
             )}
@@ -198,8 +228,8 @@ export default function VulnDetail({ cveId }: VulnDetailProps) {
 
       {/* Links */}
       <div className="flex gap-4 pt-2 border-t border-gray-200 text-sm">
-        {vuln.nvd_source_url && (
-          <a href={vuln.nvd_source_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+        {nvdHref && (
+          <a href={nvdHref} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
             NVD
           </a>
         )}

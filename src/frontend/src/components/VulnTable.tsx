@@ -1,5 +1,6 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { fetchVulnerabilities, PaginatedVulnerabilities } from '../api/client';
+import { getErrorMessage } from '../lib/utils';
 import Filters from './Filters';
 import Pagination from './Pagination';
 import VulnDetail from './VulnDetail';
@@ -53,12 +54,21 @@ export default function VulnTable() {
   const [expandedCve, setExpandedCve] = useState<string | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
-    fetchVulnerabilities(params)
-      .then(setData)
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false));
+    fetchVulnerabilities(params as unknown as Record<string, string | number | boolean | null | undefined>, controller.signal)
+      .then((d) => {
+        setData(d);
+        setLoading(false);
+      })
+      .catch((e: unknown) => {
+        // Ignore abort errors — a new request is already in flight
+        if (e instanceof Error && e.name === 'AbortError') return;
+        setError(getErrorMessage(e));
+        setLoading(false);
+      });
+    return () => controller.abort();
   }, [params]);
 
   const handleSort = (col: string | null) => {
@@ -70,6 +80,12 @@ export default function VulnTable() {
       page: 1,
     }));
   };
+
+  // Stable callback — VulnRow (React.memo) won't re-render just because the
+  // parent re-renders; only rows whose `expanded` prop actually changes will.
+  const handleToggle = useCallback((key: string) => {
+    setExpandedCve((prev) => prev === key ? null : key);
+  }, []);
 
   return (
     <>
@@ -130,12 +146,11 @@ export default function VulnTable() {
                   <Fragment key={rowKey}>
                     <VulnRow
                       vuln={vuln}
+                      rowKey={rowKey}
                       expanded={expandedCve === rowKey}
-                      onToggle={() =>
-                        setExpandedCve(expandedCve === rowKey ? null : rowKey)
-                      }
+                      onToggle={handleToggle}
                     />
-                    {expandedCve === rowKey && (
+                    {expandedCve === rowKey && vuln.cve_id && (
                       <tr>
                         <td colSpan={COLUMNS.length} className="p-0">
                           <VulnDetail cveId={vuln.cve_id} />
