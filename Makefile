@@ -1,5 +1,9 @@
 TEST_DB_URL ?= postgresql+asyncpg://vulnprio:vulnprio_dev@db:5432/vulnprio_test
 
+# Start the full development stack
+dev:
+	docker compose up -d
+
 # Run all tests inside the backend container
 test:
 	docker compose exec -e TEST_DATABASE_URL=$(TEST_DB_URL) backend \
@@ -34,4 +38,4 @@ test-db-reset:
 	docker compose exec db psql -U vulnprio -c "DROP DATABASE IF EXISTS vulnprio_test;"
 	docker compose exec db psql -U vulnprio -c "CREATE DATABASE vulnprio_test;"
 
-.PHONY: test test-unit test-integration test-api test-cov test-db-create test-db-reset
+.PHONY: dev test test-unit test-integration test-api test-cov test-db-create test-db-reset
