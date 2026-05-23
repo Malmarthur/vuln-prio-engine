@@ -1,9 +1,11 @@
+import { memo } from 'react';
 import { Vulnerability } from '../api/client';
 
 interface VulnRowProps {
   vuln: Vulnerability;
+  rowKey: string;
   expanded: boolean;
-  onToggle: () => void;
+  onToggle: (key: string) => void;
 }
 
 const SEV_BADGE: Record<string, string> = {
@@ -44,13 +46,13 @@ function bestCvss(v: Vulnerability): number | null {
   return v.cvss_v31_score ?? v.cvss_v30_score ?? v.cvss_v2_score;
 }
 
-export default function VulnRow({ vuln, expanded, onToggle }: VulnRowProps) {
+const VulnRow = memo(function VulnRow({ vuln, rowKey, expanded, onToggle }: VulnRowProps) {
   const sev = bestSeverity(vuln);
   const score = bestCvss(vuln);
 
   return (
     <tr
-      onClick={onToggle}
+      onClick={() => onToggle(rowKey)}
       className={`cursor-pointer border-b border-gray-100 transition-colors ${
         expanded ? 'bg-gray-50' : 'hover:bg-gray-50'
       }`}
@@ -119,4 +121,6 @@ export default function VulnRow({ vuln, expanded, onToggle }: VulnRowProps) {
       </td>
     </tr>
   );
-}
+});
+
+export default VulnRow;

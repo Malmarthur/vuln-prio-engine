@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { ColumnConfig, EligibleColumn, ScoringProfile } from '../../api/client';
 import { TypeBadge } from './helpers';
 
@@ -35,12 +35,16 @@ export default function MetricEditModal({
   onAddFallback,
   onEnsureColumnValues,
 }: Props) {
+  // Keep a ref to the latest callback so the effect doesn't need it as a dep
+  const ensureValuesRef = useRef(onEnsureColumnValues);
+  ensureValuesRef.current = onEnsureColumnValues;
+
   // Fetch distinct values when modal opens (for categorical/boolean)
   useEffect(() => {
     if (meta.type !== 'numeric') {
-      onEnsureColumnValues(columnName);
+      ensureValuesRef.current(columnName);
     }
-  }, [columnName, meta.type]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [columnName, meta.type]);
 
   const cats: string[] =
     meta.type === 'boolean'

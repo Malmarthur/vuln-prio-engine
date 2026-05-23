@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ColumnConfig,
   EligibleColumn,
@@ -13,6 +13,7 @@ import {
   saveScoringProfile,
 } from '../api/client';
 
+import { getErrorMessage } from '../lib/utils';
 import AddMetricButton from './scoring/AddMetricButton';
 import ConfidenceLineChart from './scoring/ConfidenceLineChart';
 import MetricCard from './scoring/MetricCard';
@@ -41,6 +42,13 @@ export default function ScoringPanel() {
   // Cache of distinct values per categorical column (fetched lazily)
   const [colValues, setColValues] = useState<Record<string, string[]>>({});
 
+  // Clean up the elapsed-time timer if the component unmounts mid-computation
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     Promise.all([
       fetchScoringProfile(),
@@ -52,7 +60,7 @@ export default function ScoringPanel() {
         setDistribution(d);
         setEligibleColumns(ec);
       })
-      .catch((e) => setError((e as Error).message))
+      .catch((e) => setError(getErrorMessage(e)))
       .finally(() => setLoading(false));
   }, []);
 
@@ -160,7 +168,7 @@ export default function ScoringPanel() {
       setMsg('Profile saved');
       setTimeout(() => setMsg(null), 2000);
     } catch (e) {
-      setMsg(`Error: ${(e as Error).message}`);
+      setMsg(`Error: ${getErrorMessage(e)}`);
     } finally {
       setSaving(false);
     }
@@ -185,7 +193,7 @@ export default function ScoringPanel() {
       const d = await fetchScoreDistribution();
       setDistribution(d);
     } catch (e) {
-      setMsg(`Error: ${(e as Error).message}`);
+      setMsg(`Error: ${getErrorMessage(e)}`);
     } finally {
       if (timerRef.current) clearInterval(timerRef.current);
       setComputing(false);
@@ -201,11 +209,29 @@ export default function ScoringPanel() {
       setMsg('Profile reset to defaults');
       setTimeout(() => setMsg(null), 2000);
     } catch (e) {
-      setMsg(`Error: ${(e as Error).message}`);
+      setMsg(`Error: ${getErrorMessage(e)}`);
     } finally {
       setSaving(false);
     }
   };
+
+  // ---------------------------------------------------------------------------
+  // Derived state — computed once per profile change, before early returns
+  // ---------------------------------------------------------------------------
+
+  const { allFallbacks, topLevelCols, totalWeight, weightWarning } = useMemo(() => {
+    if (!profile) return { allFallbacks: new Set<string>(), topLevelCols: [] as string[], totalWeight: 0, weightWarning: false };
+    const allFallbacks = new Set<string>();
+    Object.values(profile.columns).forEach((cfg) => {
+      cfg.fallbacks?.forEach((f) => allFallbacks.add(f));
+    });
+    const topLevelCols = Object.keys(profile.columns).filter((col) => !allFallbacks.has(col));
+    const totalWeight = topLevelCols
+      .filter((col) => profile.columns[col].enabled)
+      .reduce((s, col) => s + profile.columns[col].weight, 0);
+    const weightWarning = Math.abs(totalWeight - 100) > 0.5;
+    return { allFallbacks, topLevelCols, totalWeight, weightWarning };
+  }, [profile]);
 
   // ---------------------------------------------------------------------------
   // Loading / error states
@@ -228,26 +254,6 @@ export default function ScoringPanel() {
       </div>
     );
   }
-
-  // ---------------------------------------------------------------------------
-  // Derived state
-  // ---------------------------------------------------------------------------
-
-  // Columns used as fallbacks of another → not shown as top-level cards
-  const allFallbacks = new Set<string>();
-  Object.values(profile.columns).forEach((cfg) => {
-    cfg.fallbacks?.forEach((f) => allFallbacks.add(f));
-  });
-
-  // Top-level metric columns (not fallbacks)
-  const topLevelCols = Object.keys(profile.columns).filter((col) => !allFallbacks.has(col));
-
-  // Total weight of enabled top-level columns
-  const totalWeight = topLevelCols
-    .filter((col) => profile.columns[col].enabled)
-    .reduce((s, col) => s + profile.columns[col].weight, 0);
-
-  const weightWarning = Math.abs(totalWeight - 100) > 0.5;
 
   // Currently editing
   const editingConfig = editingColumn ? profile.columns[editingColumn] : null;
