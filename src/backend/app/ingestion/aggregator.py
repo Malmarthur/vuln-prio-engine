@@ -159,7 +159,13 @@ def _extract_products(cve: dict) -> list[dict] | None:
                     products.append({
                         "cpe": match.get("criteria"),
                         "version_start": match.get("versionStartIncluding") or match.get("versionStartExcluding"),
+                        "version_start_including": "versionStartIncluding" in match if (
+                            match.get("versionStartIncluding") or match.get("versionStartExcluding")
+                        ) else None,
                         "version_end": match.get("versionEndIncluding") or match.get("versionEndExcluding"),
+                        "version_end_including": "versionEndIncluding" in match if (
+                            match.get("versionEndIncluding") or match.get("versionEndExcluding")
+                        ) else None,
                     })
     return products or None
 

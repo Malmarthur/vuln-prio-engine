@@ -1,0 +1,68 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:6e6f8a42-4586-4e8e-9d62-1a6d7efc0201",
+  "metadata": {
+    "timestamp": "2026-05-23T09:05:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:erp-app-prod-01",
+      "name": "erp-app-prod-01",
+      "version": "12.8.4",
+      "properties": [
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "critical"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "high"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "bom-ref": "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1",
+      "name": "Apache Log4j",
+      "version": "2.14.1",
+      "publisher": "Apache Software Foundation",
+      "purl": "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1",
+      "cpe": "cpe:2.3:a:apache:log4j:2.14.1:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/apache-tomcat@9.0.30",
+      "name": "Apache Tomcat",
+      "version": "9.0.30",
+      "publisher": "Apache Software Foundation",
+      "purl": "pkg:generic/apache-tomcat@9.0.30",
+      "cpe": "cpe:2.3:a:apache:tomcat:9.0.30:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:maven/org.springframework/spring-core@5.3.17",
+      "name": "Spring Framework",
+      "version": "5.3.17",
+      "publisher": "VMware",
+      "purl": "pkg:maven/org.springframework/spring-core@5.3.17",
+      "cpe": "cpe:2.3:a:vmware:spring_framework:5.3.17:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "database",
+      "bom-ref": "pkg:generic/postgresql@12.7",
+      "name": "PostgreSQL",
+      "version": "12.7",
+      "publisher": "PostgreSQL Global Development Group",
+      "purl": "pkg:generic/postgresql@12.7",
+      "cpe": "cpe:2.3:a:postgresql:postgresql:12.7:*:*:*:*:*:*:*"
+    }
+  ]
+}
+

@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.database import Base, get_db
 from app.main import app
+from app.models.asset import Asset
 from app.models.ingestion_log import IngestionLog
 from app.models.vulnerability import Vulnerability
 
@@ -59,7 +60,9 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
     async with test_engine.connect() as conn:
         await conn.execute(
             text(
-                "TRUNCATE vulnerabilities, vulnerability_scores, ingestion_logs, settings"
+                "TRUNCATE assets, asset_components, findings, finding_scores,"
+                " vulnerability_products, vulnerabilities, vulnerability_scores,"
+                " ingestion_logs, settings"
                 " RESTART IDENTITY CASCADE"
             )
         )
@@ -122,6 +125,21 @@ def make_ingestion_log(**overrides) -> IngestionLog:
     return IngestionLog(**defaults)
 
 
+def make_asset(**overrides) -> Asset:
+    defaults = {
+        "id": uuid.uuid4(),
+        "external_id": f"asset-{uuid.uuid4().hex[:8]}",
+        "name": "Test asset",
+        "asset_type": "application",
+        "source": "cyclonedx",
+        "internet_exposure": "internal",
+        "business_criticality": "medium",
+        "patch_complexity": "medium",
+    }
+    defaults.update(overrides)
+    return Asset(**defaults)
+
+
 @pytest.fixture
 def vuln_factory():
     return make_vulnerability
@@ -130,6 +148,11 @@ def vuln_factory():
 @pytest.fixture
 def log_factory():
     return make_ingestion_log
+
+
+@pytest.fixture
+def asset_factory():
+    return make_asset
 
 
 # ---------------------------------------------------------------------------

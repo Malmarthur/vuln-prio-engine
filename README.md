@@ -1,6 +1,6 @@
 # VulnPrio
 
-Vulnerability intelligence aggregation platform. Collects data from NVD, EPSS, CISA KEV, and EUVD into a unified PostgreSQL database, exposed via a REST API and React dashboard. Built for a cybersecurity research paper on vulnerability prioritization methodology.
+Vulnerability intelligence and prioritization demo platform. Collects data from NVD, EPSS, CISA KEV, and EUVD into a unified PostgreSQL database, imports CycloneDX asset inventories, matches vulnerable CPEs into findings, and exposes everything via a REST API and React dashboard. Built for a cybersecurity research paper on vulnerability prioritization methodology.
 
 ## Tech Stack
 
@@ -41,6 +41,9 @@ docker compose exec backend alembic upgrade head
 - **EPSS** (Exploit Prediction Scoring System) — Exploitation probability scores from FIRST (~260k CVEs)
 - **CISA KEV** (Known Exploited Vulnerabilities) — Actively exploited CVEs tracked by CISA
 - **EUVD** (EU Vulnerability Database) — European vulnerability data from ENISA
+- **CycloneDX JSON** — Asset inventory import; one BOM represents one asset and its components represent installed software with CPEs
+
+Synthetic CycloneDX asset samples are available in `samples/assets/` for local demos and finding-prioritization tests.
 
 ## API Endpoints
 
@@ -53,6 +56,17 @@ GET  /api/v1/ingestion/status          Latest run per source
 GET  /api/v1/ingestion/logs            Paginated ingestion history
 GET  /api/v1/settings                  All settings
 PUT  /api/v1/settings/{key}            Update a setting
+POST /api/v1/assets/import/cyclonedx   Import a CycloneDX JSON BOM as an asset
+GET  /api/v1/assets                    Paginated asset list
+GET  /api/v1/assets/stats              Asset/component aggregate statistics
+GET  /api/v1/assets/{id}               Asset detail with components
+POST /api/v1/findings/match/run        Run CPE-based matching
+POST /api/v1/findings/scoring/run      Compute finding priorities
+GET  /api/v1/findings/scoring/profile  Get finding scoring profile
+PUT  /api/v1/findings/scoring/profile  Update finding scoring profile
+DEL  /api/v1/findings/scoring/profile  Reset finding scoring profile
+GET  /api/v1/findings                  Paginated findings list
+GET  /api/v1/findings/stats            Finding aggregate statistics
 ```
 
 ## Development

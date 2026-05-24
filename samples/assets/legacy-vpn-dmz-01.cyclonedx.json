@@ -1,0 +1,58 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:6e6f8a42-4586-4e8e-9d62-1a6d7efc0401",
+  "metadata": {
+    "timestamp": "2026-05-23T09:15:00Z",
+    "component": {
+      "type": "device",
+      "bom-ref": "asset:legacy-vpn-dmz-01",
+      "name": "legacy-vpn-dmz-01",
+      "version": "7.0.0",
+      "properties": [
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internet"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "critical"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "high"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/fortios@7.0.0",
+      "name": "FortiOS",
+      "version": "7.0.0",
+      "publisher": "Fortinet",
+      "purl": "pkg:generic/fortios@7.0.0",
+      "cpe": "cpe:2.3:o:fortinet:fortios:7.0.0:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/openssh@7.2p2",
+      "name": "OpenSSH",
+      "version": "7.2p2",
+      "publisher": "OpenBSD",
+      "purl": "pkg:generic/openssh@7.2p2",
+      "cpe": "cpe:2.3:a:openbsd:openssh:7.2p2:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:generic/openssl@1.0.2k",
+      "name": "OpenSSL",
+      "version": "1.0.2k",
+      "publisher": "OpenSSL",
+      "purl": "pkg:generic/openssl@1.0.2k",
+      "cpe": "cpe:2.3:a:openssl:openssl:1.0.2k:*:*:*:*:*:*:*"
+    }
+  ]
+}

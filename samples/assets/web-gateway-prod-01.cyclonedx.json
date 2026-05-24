@@ -1,0 +1,78 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:6e6f8a42-4586-4e8e-9d62-1a6d7efc0101",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:web-gateway-prod-01",
+      "name": "web-gateway-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internet"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "high"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "high"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/apache-httpd@2.4.49",
+      "name": "Apache HTTP Server",
+      "version": "2.4.49",
+      "publisher": "Apache Software Foundation",
+      "purl": "pkg:generic/apache-httpd@2.4.49",
+      "cpe": "cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/nginx@1.14.0",
+      "name": "nginx",
+      "version": "1.14.0",
+      "publisher": "nginx",
+      "purl": "pkg:generic/nginx@1.14.0",
+      "externalReferences": [
+        {
+          "type": "cpe",
+          "url": "cpe:2.3:a:nginx:nginx:1.14.0:*:*:*:*:*:*:*"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:generic/openssl@1.0.1",
+      "name": "OpenSSL",
+      "version": "1.0.1",
+      "publisher": "OpenSSL",
+      "purl": "pkg:generic/openssl@1.0.1",
+      "properties": [
+        {
+          "name": "vulnprio:cpe",
+          "value": "cpe:2.3:a:openssl:openssl:1.0.1:*:*:*:*:*:*:*"
+        }
+      ]
+    },
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/ubuntu@20.04",
+      "name": "Ubuntu Linux",
+      "version": "20.04",
+      "publisher": "Canonical",
+      "purl": "pkg:generic/ubuntu@20.04",
+      "cpe": "cpe:2.3:o:canonical:ubuntu_linux:20.04:*:*:*:lts:*:*:*"
+    }
+  ]
+}
+

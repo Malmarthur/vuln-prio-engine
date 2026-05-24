@@ -1,0 +1,68 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:6e6f8a42-4586-4e8e-9d62-1a6d7efc0301",
+  "metadata": {
+    "timestamp": "2026-05-23T09:10:00Z",
+    "component": {
+      "type": "device",
+      "bom-ref": "asset:dev-workstation-42",
+      "name": "dev-workstation-42",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "medium"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "low"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/windows-10@21h1",
+      "name": "Microsoft Windows 10",
+      "version": "21H1",
+      "publisher": "Microsoft",
+      "purl": "pkg:generic/windows-10@21h1",
+      "cpe": "cpe:2.3:o:microsoft:windows_10:21h1:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/google-chrome@91.0.4472.77",
+      "name": "Google Chrome",
+      "version": "91.0.4472.77",
+      "publisher": "Google",
+      "purl": "pkg:generic/google-chrome@91.0.4472.77",
+      "cpe": "cpe:2.3:a:google:chrome:91.0.4472.77:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/7-zip@19.00",
+      "name": "7-Zip",
+      "version": "19.00",
+      "publisher": "Igor Pavlov",
+      "purl": "pkg:generic/7-zip@19.00",
+      "cpe": "cpe:2.3:a:7-zip:7-zip:19.00:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/git@2.30.0",
+      "name": "Git",
+      "version": "2.30.0",
+      "publisher": "Git Project",
+      "purl": "pkg:generic/git@2.30.0",
+      "cpe": "cpe:2.3:a:git-scm:git:2.30.0:*:*:*:*:*:*:*"
+    }
+  ]
+}
+

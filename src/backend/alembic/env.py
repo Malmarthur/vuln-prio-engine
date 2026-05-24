@@ -22,7 +22,17 @@ config.set_main_option("sqlalchemy.url", db_url)
 
 # Import all models so their metadata is registered
 from app.database import Base  # noqa: E402
-from app.models import Vulnerability, IngestionLog, Setting  # noqa: E402, F401
+from app.models import (  # noqa: E402, F401
+    Asset,
+    AssetComponent,
+    Finding,
+    FindingScore,
+    IngestionLog,
+    Setting,
+    Vulnerability,
+    VulnerabilityProduct,
+    VulnerabilityScore,
+)
 
 target_metadata = Base.metadata
 
