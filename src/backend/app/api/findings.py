@@ -148,6 +148,9 @@ def _finding_response(finding: Finding) -> FindingResponse:
             "internet_exposure": finding.asset.internet_exposure,
             "business_criticality": finding.asset.business_criticality,
             "patch_complexity": finding.asset.patch_complexity,
+            "priority_level": finding.asset.priority_level,
+            "priority_score": float(finding.asset.priority_score) if finding.asset.priority_score is not None else None,
+            "priority_confidence": float(finding.asset.priority_confidence) if finding.asset.priority_confidence is not None else None,
         },
         component={
             "id": finding.component.id,

@@ -12,6 +12,10 @@ import CompactKpi, { CompactKpiStrip } from './CompactKpi';
 import Pagination from './Pagination';
 
 const PRIORITY_COLORS: Record<string, string> = {
+  A0: 'bg-red-100 text-red-700 border-red-200',
+  A1: 'bg-orange-100 text-orange-700 border-orange-200',
+  A2: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+  A3: 'bg-green-100 text-green-700 border-green-200',
   P0: 'bg-red-100 text-red-700 border-red-200',
   P1: 'bg-orange-100 text-orange-700 border-orange-200',
   P2: 'bg-yellow-100 text-yellow-700 border-yellow-200',
@@ -258,6 +262,13 @@ export default function FindingsPanel() {
                   </td>
                   <td className="px-3 py-3 text-sm">
                     <div className="font-medium text-gray-900">{finding.asset.name}</div>
+                    <div className="mt-1">
+                      {finding.asset.priority_level ? (
+                        <span className={`inline-flex rounded border px-1.5 py-0.5 text-xs font-semibold ${PRIORITY_COLORS[finding.asset.priority_level] ?? 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                          {finding.asset.priority_level} {finding.asset.priority_score?.toFixed(1)}
+                        </span>
+                      ) : <span className="text-xs text-gray-400">Asset unscored</span>}
+                    </div>
                     <div className="text-xs text-gray-500">{finding.asset.internet_exposure} / {finding.asset.business_criticality}</div>
                   </td>
                   <td className="px-3 py-3 text-sm">
@@ -309,6 +320,8 @@ function FindingDetails({ finding }: { finding: Finding }) {
             <DetailRow label="Exposure" value={finding.asset.internet_exposure} />
             <DetailRow label="Criticality" value={finding.asset.business_criticality} />
             <DetailRow label="Patch complexity" value={finding.asset.patch_complexity} />
+            <DetailRow label="Asset priority" value={formatPriority(finding.asset.priority_level, finding.asset.priority_score)} />
+            <DetailRow label="Asset confidence" value={finding.asset.priority_confidence == null ? '-' : `${finding.asset.priority_confidence.toFixed(1)}%`} />
           </dl>
         </section>
 

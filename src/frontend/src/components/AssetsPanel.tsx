@@ -10,6 +10,7 @@ import {
 import { getErrorMessage } from '../lib/utils';
 import CompactKpi, { CompactKpiStrip } from './CompactKpi';
 import Pagination from './Pagination';
+import { PRIORITY_COLORS } from './scoring/helpers';
 
 const EXPOSURE_LABELS: Record<string, string> = {
   internet: 'Internet',
@@ -22,6 +23,7 @@ export default function AssetsPanel() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [stats, setStats] = useState<AssetStats | null>(null);
   const [page, setPage] = useState(1);
+  const [priority, setPriority] = useState('');
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
@@ -32,7 +34,7 @@ export default function AssetsPanel() {
   const load = () => {
     setLoading(true);
     setError(null);
-    Promise.all([fetchAssets({ page, per_page: 25 }), fetchAssetStats()])
+    Promise.all([fetchAssets({ page, per_page: 25, priority_level: priority }), fetchAssetStats()])
       .then(([assetPage, assetStats]) => {
         setAssets(assetPage.items);
         setTotal(assetPage.total);
@@ -45,7 +47,7 @@ export default function AssetsPanel() {
 
   useEffect(() => {
     load();
-  }, [page]);
+  }, [page, priority]);
 
   const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -86,19 +88,33 @@ export default function AssetsPanel() {
         <CompactKpi label="Assets" value={formatNumber(stats?.total_assets)} />
         <CompactKpi label="Components" value={formatNumber(stats?.total_components)} />
         <CompactKpi label="With CPE" value={formatNumber(stats?.components_with_cpe)} />
+        <CompactKpi label="Scored" value={formatNumber(stats?.scored_assets)} />
+        <CompactKpi label="A0 assets" value={formatNumber(stats?.priority_distribution.A0 ?? 0)} tone="red" />
         <CompactKpi label="Internet-facing" value={formatNumber(stats?.exposure_distribution.internet ?? 0)} tone="orange" />
         <CompactKpi label="Critical assets" value={formatNumber(stats?.criticality_distribution.critical ?? 0)} tone="red" />
-        <CompactKpi label="Asset priority" value="WIP" detail="Not scored yet" tone="muted" />
       </CompactKpiStrip>
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Assets</h2>
         </div>
-        <label className="inline-flex items-center justify-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 cursor-pointer">
-          {importing ? 'Importing...' : 'Import CycloneDX JSON'}
-          <input type="file" accept="application/json,.json" className="hidden" onChange={handleFile} disabled={importing} />
-        </label>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <select
+            value={priority}
+            onChange={(event) => {
+              setPriority(event.target.value);
+              setPage(1);
+            }}
+            className="rounded-md border-gray-300 text-sm focus:border-gray-500 focus:ring-gray-500"
+          >
+            <option value="">All priorities</option>
+            {['A0', 'A1', 'A2', 'A3'].map((level) => <option key={level} value={level}>{level}</option>)}
+          </select>
+          <label className="inline-flex items-center justify-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 cursor-pointer">
+            {importing ? 'Importing...' : 'Import CycloneDX JSON'}
+            <input type="file" accept="application/json,.json" className="hidden" onChange={handleFile} disabled={importing} />
+          </label>
+        </div>
       </div>
 
       {msg && <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">{msg}</div>}
@@ -108,7 +124,7 @@ export default function AssetsPanel() {
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
-              {['Asset', 'Exposure', 'Criticality', 'Patch Complexity', 'Components', 'CPEs'].map((label) => (
+              {['Asset', 'Priority', 'Score', 'Confidence', 'Exposure', 'Criticality', 'Patch Complexity', 'Components', 'CPEs'].map((label) => (
                 <th key={label} className="px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   {label}
                 </th>
@@ -117,9 +133,9 @@ export default function AssetsPanel() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="px-3 py-12 text-center text-gray-400">Loading...</td></tr>
+              <tr><td colSpan={9} className="px-3 py-12 text-center text-gray-400">Loading...</td></tr>
             ) : assets.length === 0 ? (
-              <tr><td colSpan={6} className="px-3 py-12 text-center text-gray-400">No assets imported yet.</td></tr>
+              <tr><td colSpan={9} className="px-3 py-12 text-center text-gray-400">No assets imported yet.</td></tr>
             ) : assets.map((asset) => (
               <Fragment key={asset.id}>
                 <tr
@@ -143,6 +159,11 @@ export default function AssetsPanel() {
                       </div>
                     </div>
                   </td>
+                  <td className="px-3 py-3 text-sm">
+                    <PriorityBadge level={asset.priority_level} />
+                  </td>
+                  <td className="px-3 py-3 text-sm font-mono text-gray-700">{formatScore(asset.priority_score)}</td>
+                  <td className="px-3 py-3 text-sm font-mono text-gray-700">{formatScore(asset.priority_confidence)}</td>
                   <td className="px-3 py-3 text-sm text-gray-700">{EXPOSURE_LABELS[asset.internet_exposure] ?? asset.internet_exposure}</td>
                   <td className="px-3 py-3 text-sm text-gray-700 capitalize">{asset.business_criticality}</td>
                   <td className="px-3 py-3 text-sm text-gray-700 capitalize">{asset.patch_complexity}</td>
@@ -151,7 +172,7 @@ export default function AssetsPanel() {
                 </tr>
                 {expandedAssetIds.includes(asset.id) && (
                   <tr className="border-b border-gray-100 bg-gray-50">
-                    <td colSpan={6} className="px-3 py-4">
+                    <td colSpan={9} className="px-3 py-4">
                       <AssetComponents asset={asset} />
                     </td>
                   </tr>
@@ -243,6 +264,19 @@ function ComponentRow({ component }: { component: AssetComponent }) {
       </td>
     </tr>
   );
+}
+
+function PriorityBadge({ level }: { level: string | null }) {
+  if (!level) return <span className="text-gray-400">-</span>;
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${PRIORITY_COLORS[level]?.badge ?? 'bg-gray-100 text-gray-600'}`}>
+      {level}
+    </span>
+  );
+}
+
+function formatScore(value: number | null): string {
+  return value == null ? '-' : value.toFixed(1);
 }
 
 function formatNumber(value: number | undefined): string {

@@ -31,11 +31,42 @@ class Asset(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    score = relationship("AssetScore", uselist=False, lazy="joined", cascade="all, delete-orphan")
+
+    @property
+    def priority_score(self):
+        return self.score.priority_score if self.score else None
+
+    @property
+    def priority_level(self):
+        return self.score.priority_level if self.score else None
+
+    @property
+    def priority_confidence(self):
+        return self.score.priority_confidence if self.score else None
 
     __table_args__ = (
         Index("ix_assets_name", "name"),
         Index("ix_assets_internet_exposure", "internet_exposure"),
         Index("ix_assets_business_criticality", "business_criticality"),
+    )
+
+
+class AssetScore(Base):
+    __tablename__ = "asset_scores"
+
+    asset_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("assets.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    priority_score = Column(Numeric(4, 1))
+    priority_confidence = Column(Numeric(4, 1))
+    priority_level = Column(String(2))
+
+    __table_args__ = (
+        Index("ix_asset_scores_priority_score", "priority_score"),
+        Index("ix_asset_scores_priority_level", "priority_level"),
     )
 
 

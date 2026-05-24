@@ -149,6 +149,9 @@ export interface Asset {
   internet_exposure: string;
   business_criticality: string;
   patch_complexity: string;
+  priority_level: string | null;
+  priority_score: number | null;
+  priority_confidence: number | null;
   created_at: string | null;
   updated_at: string | null;
   components: AssetComponent[];
@@ -166,8 +169,11 @@ export interface PaginatedAssets {
 
 export interface AssetStats {
   total_assets: number;
+  scored_assets: number;
+  unscored_assets: number;
   total_components: number;
   components_with_cpe: number;
+  priority_distribution: Record<string, number>;
   exposure_distribution: Record<string, number>;
   criticality_distribution: Record<string, number>;
 }
@@ -193,6 +199,9 @@ export interface Finding {
     internet_exposure: string;
     business_criticality: string;
     patch_complexity: string;
+    priority_level: string | null;
+    priority_score: number | null;
+    priority_confidence: number | null;
   };
   component: {
     id: string;
@@ -243,6 +252,13 @@ export interface FindingScoringProfile {
   thresholds: Record<'P0' | 'P1' | 'P2' | 'P3', number>;
   weights: {
     vulnerability_priority: number;
+    asset_priority: number;
+  };
+}
+
+export interface AssetScoringProfile {
+  thresholds: Record<'A0' | 'A1' | 'A2' | 'A3', number>;
+  weights: {
     internet_exposure: number;
     business_criticality: number;
     patch_complexity: number;
@@ -380,6 +396,25 @@ export function importCycloneDXAsset(payload: Record<string, unknown>): Promise<
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export function runAssetScoring(): Promise<ScoringRunResponse> {
+  return request<ScoringRunResponse>('/assets/scoring/run', { method: 'POST' });
+}
+
+export function fetchAssetScoringProfile(): Promise<AssetScoringProfile> {
+  return request<AssetScoringProfile>('/assets/scoring/profile');
+}
+
+export function saveAssetScoringProfile(profile: AssetScoringProfile): Promise<AssetScoringProfile> {
+  return request<AssetScoringProfile>('/assets/scoring/profile', {
+    method: 'PUT',
+    body: JSON.stringify(profile),
+  });
+}
+
+export function resetAssetScoringProfile(): Promise<AssetScoringProfile> {
+  return request<AssetScoringProfile>('/assets/scoring/profile', { method: 'DELETE' });
 }
 
 export function fetchFindings(params: QueryParams = {}, signal?: AbortSignal): Promise<PaginatedFindings> {

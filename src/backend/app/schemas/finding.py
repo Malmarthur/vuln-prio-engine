@@ -11,6 +11,9 @@ class FindingAssetSummary(BaseModel):
     internet_exposure: str
     business_criticality: str
     patch_complexity: str
+    priority_level: Optional[str] = None
+    priority_score: Optional[float] = None
+    priority_confidence: Optional[float] = None
 
 
 class FindingComponentSummary(BaseModel):
@@ -91,57 +94,17 @@ class FindingScoringWeights(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     vulnerability_priority: float = Field(..., ge=0)
-    internet_exposure: float = Field(..., ge=0)
-    business_criticality: float = Field(..., ge=0)
-    patch_complexity: float = Field(..., ge=0)
+    asset_priority: float = Field(..., ge=0)
 
     @model_validator(mode="after")
     def require_positive_total(self):
         total = (
             self.vulnerability_priority
-            + self.internet_exposure
-            + self.business_criticality
-            + self.patch_complexity
+            + self.asset_priority
         )
         if total <= 0:
             raise ValueError("At least one finding scoring weight must be greater than 0")
         return self
-
-
-class InternetExposureValues(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    internet: float = Field(..., ge=0, le=100)
-    internal: float = Field(..., ge=0, le=100)
-    isolated: float = Field(..., ge=0, le=100)
-    unknown: float = Field(..., ge=0, le=100)
-
-
-class BusinessCriticalityValues(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    critical: float = Field(..., ge=0, le=100)
-    high: float = Field(..., ge=0, le=100)
-    medium: float = Field(..., ge=0, le=100)
-    low: float = Field(..., ge=0, le=100)
-    unknown: float = Field(..., ge=0, le=100)
-
-
-class PatchComplexityValues(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    high: float = Field(..., ge=0, le=100)
-    medium: float = Field(..., ge=0, le=100)
-    low: float = Field(..., ge=0, le=100)
-    unknown: float = Field(..., ge=0, le=100)
-
-
-class FindingScoringValues(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    internet_exposure: InternetExposureValues
-    business_criticality: BusinessCriticalityValues
-    patch_complexity: PatchComplexityValues
 
 
 class FindingScoringProfile(BaseModel):
@@ -149,4 +112,3 @@ class FindingScoringProfile(BaseModel):
 
     thresholds: PriorityThresholds
     weights: FindingScoringWeights
-    values: FindingScoringValues

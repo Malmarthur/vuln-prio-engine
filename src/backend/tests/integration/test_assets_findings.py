@@ -1,9 +1,10 @@
 from sqlalchemy import select
 
-from app.models.asset import AssetComponent, Finding, FindingScore, VulnerabilityProduct
+from app.models.asset import AssetComponent, AssetScore, Finding, FindingScore, VulnerabilityProduct
 from app.services.asset_service import import_cyclonedx_asset
-from app.services.finding_service import compute_finding_scores, run_matching
-from app.services.vulnerability_service import sync_vulnerability_products_from_records
+from app.services.asset_service import compute_asset_scores
+from app.services.finding_service import compute_finding_scores, get_finding_scoring_profile, run_matching
+from app.services.vulnerability_service import set_setting, sync_vulnerability_products_from_records
 
 
 def _cyclonedx_payload():
@@ -111,6 +112,61 @@ async def test_product_sync_matching_and_finding_scoring(db_session, vuln_factor
     assert rows == 1
     assert distribution
     assert (await db_session.execute(select(FindingScore))).scalar_one().priority_level in {"P0", "P1"}
+    assert (await db_session.execute(select(AssetScore))).scalar_one().priority_level in {"A0", "A1"}
+
+
+async def test_asset_scoring_orders_contextual_priority(db_session):
+    high_payload = _cyclonedx_payload()
+    low_payload = _cyclonedx_payload()
+    low_payload["serialNumber"] = "urn:uuid:test-asset-2"
+    low_payload["metadata"]["component"]["bom-ref"] = "dev-web-01"
+    low_payload["metadata"]["component"]["name"] = "dev-web-01"
+    low_payload["metadata"]["component"]["properties"] = [
+        {"name": "vulnprio:internet_exposure", "value": "isolated"},
+        {"name": "vulnprio:business_criticality", "value": "low"},
+        {"name": "vulnprio:patch_complexity", "value": "low"},
+    ]
+
+    high_asset, _ = await import_cyclonedx_asset(db_session, high_payload)
+    low_asset, _ = await import_cyclonedx_asset(db_session, low_payload)
+
+    rows, distribution = await compute_asset_scores(db_session)
+    assert rows == 2
+    assert distribution
+
+    scores = {
+        row.asset_id: row
+        for row in (await db_session.execute(select(AssetScore))).scalars().all()
+    }
+    assert float(scores[high_asset.id].priority_score) > float(scores[low_asset.id].priority_score)
+    assert scores[high_asset.id].priority_level in {"A0", "A1"}
+    assert scores[low_asset.id].priority_level in {"A2", "A3"}
+
+
+async def test_legacy_finding_profile_collapses_asset_context_weights(db_session):
+    await set_setting(
+        db_session,
+        "finding_scoring_profile",
+        {
+            "thresholds": {"V0": 80, "V1": 55, "V2": 30, "V3": 0},
+            "weights": {
+                "vulnerability_priority": 60,
+                "internet_exposure": 15,
+                "business_criticality": 20,
+                "patch_complexity": 5,
+            },
+            "values": {
+                "internet_exposure": {"internet": 100, "internal": 45, "isolated": 10, "unknown": 65},
+                "business_criticality": {"critical": 100, "high": 75, "medium": 45, "low": 15, "unknown": 65},
+                "patch_complexity": {"high": 100, "medium": 55, "low": 20, "unknown": 65},
+            },
+        },
+    )
+
+    profile = await get_finding_scoring_profile(db_session)
+    assert profile.thresholds.P0 == 80
+    assert profile.weights.vulnerability_priority == 60
+    assert profile.weights.asset_priority == 40
 
 
 async def test_windows_product_alias_matches_client_not_server(db_session, vuln_factory):

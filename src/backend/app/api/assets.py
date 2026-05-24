@@ -6,8 +6,25 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.schemas.asset import AssetDetail, AssetStats, CycloneDXImportResponse, PaginatedAssets
-from app.services.asset_service import get_asset, get_asset_stats, import_cyclonedx_asset, list_assets
+from app.schemas.asset import (
+    AssetDetail,
+    AssetScoringProfile,
+    AssetScoringRunResponse,
+    AssetStats,
+    CycloneDXImportResponse,
+    PaginatedAssets,
+)
+from app.services.asset_service import (
+    DEFAULT_ASSET_SCORING_PROFILE,
+    compute_asset_scores,
+    get_asset,
+    get_asset_scoring_profile,
+    get_asset_stats,
+    import_cyclonedx_asset,
+    list_assets,
+    save_asset_scoring_profile,
+)
+from app.services.vulnerability_service import delete_setting
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +52,7 @@ async def assets(
     internet_exposure: Optional[Literal["internet", "internal", "isolated", "unknown"]] = None,
     business_criticality: Optional[Literal["critical", "high", "medium", "low", "unknown"]] = None,
     patch_complexity: Optional[Literal["high", "medium", "low", "unknown"]] = None,
+    priority_level: Optional[Literal["A0", "A1", "A2", "A3"]] = None,
     db: AsyncSession = Depends(get_db),
 ):
     try:
@@ -46,6 +64,7 @@ async def assets(
             internet_exposure=internet_exposure,
             business_criticality=business_criticality,
             patch_complexity=patch_complexity,
+            priority_level=priority_level,
         )
         return PaginatedAssets(total=total, page=page, per_page=per_page, items=items)
     except Exception as exc:
@@ -60,6 +79,49 @@ async def asset_stats(db: AsyncSession = Depends(get_db)):
     except Exception as exc:
         logger.exception("Failed to retrieve asset stats")
         raise HTTPException(status_code=500, detail="Failed to retrieve asset stats") from exc
+
+
+@router.post("/scoring/run", response_model=AssetScoringRunResponse)
+async def score_assets(db: AsyncSession = Depends(get_db)):
+    try:
+        rows, distribution = await compute_asset_scores(db)
+        return AssetScoringRunResponse(rows_updated=rows, distribution=distribution)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to compute asset scores")
+        raise HTTPException(status_code=500, detail="Failed to compute asset scores") from exc
+
+
+@router.get("/scoring/profile", response_model=AssetScoringProfile)
+async def get_scoring_profile(db: AsyncSession = Depends(get_db)):
+    try:
+        return await get_asset_scoring_profile(db)
+    except Exception as exc:
+        logger.exception("Failed to load asset scoring profile")
+        raise HTTPException(status_code=500, detail="Failed to load asset scoring profile") from exc
+
+
+@router.put("/scoring/profile", response_model=AssetScoringProfile)
+async def update_scoring_profile(profile: AssetScoringProfile, db: AsyncSession = Depends(get_db)):
+    try:
+        await save_asset_scoring_profile(db, profile)
+        return profile
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to save asset scoring profile")
+        raise HTTPException(status_code=500, detail="Failed to save asset scoring profile") from exc
+
+
+@router.delete("/scoring/profile", response_model=AssetScoringProfile)
+async def reset_scoring_profile(db: AsyncSession = Depends(get_db)):
+    try:
+        await delete_setting(db, "asset_scoring_profile")
+        return AssetScoringProfile.model_validate(DEFAULT_ASSET_SCORING_PROFILE)
+    except Exception as exc:
+        logger.exception("Failed to reset asset scoring profile")
+        raise HTTPException(status_code=500, detail="Failed to reset asset scoring profile") from exc
 
 
 @router.get("/{asset_id}", response_model=AssetDetail)

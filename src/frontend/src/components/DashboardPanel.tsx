@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Gauge, Play, RefreshCw, RotateCcw, Save, Server, ShieldAlert, SlidersHorizontal, Target } from 'lucide-react';
+import { Gauge, Play, RefreshCw, RotateCcw, Save, Server, ShieldAlert, SlidersHorizontal, Target } from 'lucide-react';
 import {
+  AssetScoringProfile,
   AssetStats,
   ColumnConfig,
   EligibleColumn,
@@ -9,6 +10,7 @@ import {
   ScoreDistribution,
   ScoringProfile,
   VulnerabilityStats,
+  fetchAssetScoringProfile,
   fetchAssetStats,
   fetchColumnValues,
   fetchEligibleColumns,
@@ -18,9 +20,12 @@ import {
   fetchScoringProfile,
   fetchStats,
   resetFindingScoringProfile,
+  resetAssetScoringProfile,
   resetScoringProfile,
+  runAssetScoring,
   runFindingScoring,
   runScoring,
+  saveAssetScoringProfile,
   saveFindingScoringProfile,
   saveScoringProfile,
 } from '../api/client';
@@ -31,12 +36,16 @@ import MetricEditModal from './scoring/MetricEditModal';
 import { HorizontalBar, PRIORITY_COLORS } from './scoring/helpers';
 
 const VULN_PRIORITIES = ['V0', 'V1', 'V2', 'V3'] as const;
+const ASSET_PRIORITIES = ['A0', 'A1', 'A2', 'A3'] as const;
 const FINDING_PRIORITIES = ['P0', 'P1', 'P2', 'P3'] as const;
-const WEIGHT_LABELS: Record<keyof FindingScoringProfile['weights'], string> = {
-  vulnerability_priority: 'Vulnerability score',
+const ASSET_WEIGHT_LABELS: Record<keyof AssetScoringProfile['weights'], string> = {
   internet_exposure: 'Internet exposure',
   business_criticality: 'Business criticality',
   patch_complexity: 'Patch complexity',
+};
+const FINDING_WEIGHT_LABELS: Record<keyof FindingScoringProfile['weights'], string> = {
+  vulnerability_priority: 'Vulnerability score',
+  asset_priority: 'Asset score',
 };
 const VALUE_LABELS = {
   internet_exposure: 'Exposure',
@@ -50,6 +59,7 @@ export default function DashboardPanel() {
   const [findingStats, setFindingStats] = useState<FindingStats | null>(null);
   const [distribution, setDistribution] = useState<ScoreDistribution | null>(null);
   const [profile, setProfile] = useState<ScoringProfile | null>(null);
+  const [assetProfile, setAssetProfile] = useState<AssetScoringProfile | null>(null);
   const [findingProfile, setFindingProfile] = useState<FindingScoringProfile | null>(null);
   const [eligibleColumns, setEligibleColumns] = useState<Record<string, EligibleColumn> | null>(null);
   const [colValues, setColValues] = useState<Record<string, string[]>>({});
@@ -57,6 +67,7 @@ export default function DashboardPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [computingVulns, setComputingVulns] = useState(false);
+  const [computingAssets, setComputingAssets] = useState(false);
   const [computingFindings, setComputingFindings] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -64,12 +75,13 @@ export default function DashboardPanel() {
 
   const load = async () => {
     setError(null);
-    const [vs, as, fs, dist, scoring, findingScoring, columns] = await Promise.all([
+    const [vs, as, fs, dist, scoring, assetScoring, findingScoring, columns] = await Promise.all([
       fetchStats(),
       fetchAssetStats(),
       fetchFindingStats(),
       fetchScoreDistribution(),
       fetchScoringProfile(),
+      fetchAssetScoringProfile(),
       fetchFindingScoringProfile(),
       fetchEligibleColumns(),
     ]);
@@ -78,6 +90,7 @@ export default function DashboardPanel() {
     setFindingStats(fs);
     setDistribution(dist);
     setProfile(scoring);
+    setAssetProfile(assetScoring);
     setFindingProfile(findingScoring);
     setEligibleColumns(columns);
   };
@@ -173,20 +186,20 @@ export default function DashboardPanel() {
     setProfile((prev) => prev ? { ...prev, thresholds: { ...prev.thresholds, [level]: value } } : prev);
   };
 
-  const updateFindingThreshold = (level: string, value: number) => {
-    setFindingProfile((prev) => prev ? { ...prev, thresholds: { ...prev.thresholds, [level]: value } } : prev);
+  const updateAssetThreshold = (level: string, value: number) => {
+    setAssetProfile((prev) => prev ? { ...prev, thresholds: { ...prev.thresholds, [level]: value } } : prev);
   };
 
-  const updateFindingWeight = (key: keyof FindingScoringProfile['weights'], value: number) => {
-    setFindingProfile((prev) => prev ? { ...prev, weights: { ...prev.weights, [key]: value } } : prev);
+  const updateAssetWeight = (key: keyof AssetScoringProfile['weights'], value: number) => {
+    setAssetProfile((prev) => prev ? { ...prev, weights: { ...prev.weights, [key]: value } } : prev);
   };
 
-  const updateFindingValue = (
-    group: keyof FindingScoringProfile['values'],
+  const updateAssetValue = (
+    group: keyof AssetScoringProfile['values'],
     key: string,
     value: number,
   ) => {
-    setFindingProfile((prev) => {
+    setAssetProfile((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
@@ -198,16 +211,26 @@ export default function DashboardPanel() {
     });
   };
 
+  const updateFindingThreshold = (level: string, value: number) => {
+    setFindingProfile((prev) => prev ? { ...prev, thresholds: { ...prev.thresholds, [level]: value } } : prev);
+  };
+
+  const updateFindingWeight = (key: keyof FindingScoringProfile['weights'], value: number) => {
+    setFindingProfile((prev) => prev ? { ...prev, weights: { ...prev.weights, [key]: value } } : prev);
+  };
+
   const handleSave = async () => {
-    if (!profile || !findingProfile) return;
+    if (!profile || !assetProfile || !findingProfile) return;
     setSaving(true);
     setError(null);
     try {
-      const [savedProfile, savedFindingProfile] = await Promise.all([
+      const [savedProfile, savedAssetProfile, savedFindingProfile] = await Promise.all([
         saveScoringProfile(profile),
+        saveAssetScoringProfile(assetProfile),
         saveFindingScoringProfile(findingProfile),
       ]);
       setProfile(savedProfile);
+      setAssetProfile(savedAssetProfile);
       setFindingProfile(savedFindingProfile);
       showMessage('Scoring profiles saved');
     } catch (e) {
@@ -235,17 +258,35 @@ export default function DashboardPanel() {
     }
   };
 
+  const handleComputeAssets = async () => {
+    if (!assetProfile) return;
+    setComputingAssets(true);
+    setError(null);
+    try {
+      await saveAssetScoringProfile(assetProfile);
+      const res = await runAssetScoring();
+      const stats = await fetchAssetStats();
+      setAssetStats(stats);
+      showMessage(`Scored ${res.rows_updated.toLocaleString()} assets`);
+    } catch (e) {
+      setError(getErrorMessage(e));
+    } finally {
+      setComputingAssets(false);
+    }
+  };
+
   const handleComputeFindings = async () => {
-    if (!findingProfile) return;
+    if (!assetProfile || !findingProfile) return;
     setComputingFindings(true);
     setError(null);
     try {
-      await saveFindingScoringProfile(findingProfile);
+      await Promise.all([saveAssetScoringProfile(assetProfile), saveFindingScoringProfile(findingProfile)]);
       const res = await runFindingScoring();
-      const [dist, stats, vuln] = await Promise.all([fetchScoreDistribution(), fetchFindingStats(), fetchStats()]);
+      const [dist, findings, vuln, assets] = await Promise.all([fetchScoreDistribution(), fetchFindingStats(), fetchStats(), fetchAssetStats()]);
       setDistribution(dist);
-      setFindingStats(stats);
+      setFindingStats(findings);
       setVulnStats(vuln);
+      setAssetStats(assets);
       showMessage(`Scored ${res.rows_updated.toLocaleString()} findings`);
     } catch (e) {
       setError(getErrorMessage(e));
@@ -255,12 +296,13 @@ export default function DashboardPanel() {
   };
 
   const handleResetProfiles = async () => {
-    if (!confirm('Reset vulnerability and finding scoring profiles to defaults?')) return;
+    if (!confirm('Reset vulnerability, asset, and finding scoring profiles to defaults?')) return;
     setSaving(true);
     setError(null);
     try {
-      const [scoring, findingScoring] = await Promise.all([resetScoringProfile(), resetFindingScoringProfile()]);
+      const [scoring, assetScoring, findingScoring] = await Promise.all([resetScoringProfile(), resetAssetScoringProfile(), resetFindingScoringProfile()]);
       setProfile(scoring);
+      setAssetProfile(assetScoring);
       setFindingProfile(findingScoring);
       showMessage('Scoring profiles reset');
     } catch (e) {
@@ -280,7 +322,7 @@ export default function DashboardPanel() {
     );
   }
 
-  if (!profile || !findingProfile || !eligibleColumns) {
+  if (!profile || !assetProfile || !findingProfile || !eligibleColumns) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
         Failed to load dashboard: {error ?? 'missing scoring metadata'}
@@ -290,7 +332,7 @@ export default function DashboardPanel() {
 
   const editingConfig = editingColumn ? profile.columns[editingColumn] : null;
   const editingMeta = editingColumn ? eligibleColumns[editingColumn] : null;
-  const busy = saving || computingVulns || computingFindings;
+  const busy = saving || computingVulns || computingAssets || computingFindings;
 
   return (
     <div className="space-y-5">
@@ -301,7 +343,7 @@ export default function DashboardPanel() {
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Prioritization cockpit</h2>
-            <p className="text-sm text-gray-500">Vulnerabilities flow into findings; asset prioritization remains staged for the next method iteration.</p>
+            <p className="text-sm text-gray-500">Vulnerabilities and assets are scored independently before they combine into finding priority.</p>
           </div>
           <button
             onClick={() => load().catch((e) => setError(getErrorMessage(e)))}
@@ -313,7 +355,7 @@ export default function DashboardPanel() {
         </div>
         <div className="grid gap-3 md:grid-cols-4">
           <OverviewTile icon={<ShieldAlert className="h-4 w-4" />} label="Vulnerabilities" value={vulnStats?.total} detail={`${vulnStats?.kev_count ?? 0} KEV exploited`} />
-          <OverviewTile icon={<Server className="h-4 w-4" />} label="Assets" value={assetStats?.total_assets} detail={`${assetStats?.components_with_cpe ?? 0} CPE-ready components`} wip />
+          <OverviewTile icon={<Server className="h-4 w-4" />} label="Assets" value={assetStats?.total_assets} detail={`${assetStats?.scored_assets ?? 0} scored`} />
           <OverviewTile icon={<Target className="h-4 w-4" />} label="Findings" value={findingStats?.total_findings} detail={`${findingStats?.scored_findings ?? 0} scored`} />
           <OverviewTile icon={<Gauge className="h-4 w-4" />} label="Vulnerability scores" value={distribution?.scored_count} detail={`${distribution?.unscored_count ?? 0} unscored`} />
         </div>
@@ -364,30 +406,56 @@ export default function DashboardPanel() {
             busy={busy}
             saving={saving}
             computingVulns={computingVulns}
+            computingAssets={computingAssets}
             computingFindings={computingFindings}
             onSave={handleSave}
             onComputeVulns={handleComputeVulns}
+            onComputeAssets={handleComputeAssets}
             onComputeFindings={handleComputeFindings}
             onReset={handleResetProfiles}
           />
           <PriorityDistribution title="Vulnerability priority" levels={VULN_PRIORITIES} counts={distribution?.priority_counts ?? {}} total={distribution?.scored_count ?? 0} />
+          <PriorityDistribution title="Asset priority" levels={ASSET_PRIORITIES} counts={assetStats?.priority_distribution ?? {}} total={assetStats?.scored_assets ?? 0} />
           <PriorityDistribution title="Finding priority" levels={FINDING_PRIORITIES} counts={findingStats?.priority_distribution ?? {}} total={findingStats?.scored_findings ?? 0} />
         </div>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 opacity-80">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-gray-400" />
-            <h2 className="text-base font-semibold text-gray-700">Asset prioritization</h2>
-            <span className="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">WIP</span>
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Asset scoring</h2>
+              <p className="text-sm text-gray-500">Prioritize assets from exposure, criticality, and remediation complexity.</p>
+            </div>
+            <ThresholdEditor title="Asset thresholds" levels={ASSET_PRIORITIES} thresholds={assetProfile.thresholds} onChange={updateAssetThreshold} compact />
           </div>
-          <p className="mt-2 text-sm text-gray-500">
-            Assets are imported and used as finding context, but they do not have an independent persisted priority score yet.
-          </p>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <MiniStat label="Internet-facing" value={assetStats?.exposure_distribution.internet ?? 0} />
-            <MiniStat label="Critical" value={assetStats?.criticality_distribution.critical ?? 0} />
+          <div className="space-y-4">
+            <div>
+              <h3 className="mb-2 text-sm font-medium text-gray-700">Weights</h3>
+              <div className="space-y-2">
+                {(Object.keys(assetProfile.weights) as Array<keyof AssetScoringProfile['weights']>).map((key) => (
+                  <NumberRow
+                    key={key}
+                    label={ASSET_WEIGHT_LABELS[key]}
+                    value={assetProfile.weights[key]}
+                    onChange={(value) => updateAssetWeight(key, value)}
+                  />
+                ))}
+              </div>
+            </div>
+            <div>
+              <h3 className="mb-2 text-sm font-medium text-gray-700">Metric values</h3>
+              <div className="space-y-3">
+                {(Object.keys(assetProfile.values) as Array<keyof AssetScoringProfile['values']>).map((group) => (
+                  <ValueGroup
+                    key={group}
+                    title={VALUE_LABELS[group]}
+                    values={assetProfile.values[group] as Record<string, number>}
+                    onChange={(key, value) => updateAssetValue(group, key, value)}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -395,36 +463,21 @@ export default function DashboardPanel() {
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-base font-semibold text-gray-900">Finding scoring context</h2>
-              <p className="text-sm text-gray-500">Tune how vulnerability priority and asset context combine into finding priority.</p>
+              <p className="text-sm text-gray-500">Tune how vulnerability priority and asset priority combine into finding priority.</p>
             </div>
             <ThresholdEditor title="Finding thresholds" levels={FINDING_PRIORITIES} thresholds={findingProfile.thresholds} onChange={updateFindingThreshold} compact />
           </div>
-          <div className="grid gap-4 xl:grid-cols-2">
-            <div>
-              <h3 className="mb-2 text-sm font-medium text-gray-700">Weights</h3>
-              <div className="space-y-2">
-                {(Object.keys(findingProfile.weights) as Array<keyof FindingScoringProfile['weights']>).map((key) => (
-                  <NumberRow
-                    key={key}
-                    label={WEIGHT_LABELS[key]}
-                    value={findingProfile.weights[key]}
-                    onChange={(value) => updateFindingWeight(key, value)}
-                  />
-                ))}
-              </div>
-            </div>
-            <div>
-              <h3 className="mb-2 text-sm font-medium text-gray-700">Asset metric values</h3>
-              <div className="space-y-3">
-                {(Object.keys(findingProfile.values) as Array<keyof FindingScoringProfile['values']>).map((group) => (
-                  <ValueGroup
-                    key={group}
-                    title={VALUE_LABELS[group]}
-                    values={findingProfile.values[group] as Record<string, number>}
-                    onChange={(key, value) => updateFindingValue(group, key, value)}
-                  />
-                ))}
-              </div>
+          <div>
+            <h3 className="mb-2 text-sm font-medium text-gray-700">Weights</h3>
+            <div className="space-y-2">
+              {(Object.keys(findingProfile.weights) as Array<keyof FindingScoringProfile['weights']>).map((key) => (
+                <NumberRow
+                  key={key}
+                  label={FINDING_WEIGHT_LABELS[key]}
+                  value={findingProfile.weights[key]}
+                  onChange={(value) => updateFindingWeight(key, value)}
+                />
+              ))}
             </div>
           </div>
         </div>
@@ -465,13 +518,15 @@ function OverviewTile({ icon, label, value, detail, wip = false }: { icon: React
   );
 }
 
-function ActionPanel({ busy, saving, computingVulns, computingFindings, onSave, onComputeVulns, onComputeFindings, onReset }: {
+function ActionPanel({ busy, saving, computingVulns, computingAssets, computingFindings, onSave, onComputeVulns, onComputeAssets, onComputeFindings, onReset }: {
   busy: boolean;
   saving: boolean;
   computingVulns: boolean;
+  computingAssets: boolean;
   computingFindings: boolean;
   onSave: () => void;
   onComputeVulns: () => void;
+  onComputeAssets: () => void;
   onComputeFindings: () => void;
   onReset: () => void;
 }) {
@@ -486,6 +541,10 @@ function ActionPanel({ busy, saving, computingVulns, computingFindings, onSave, 
         <button onClick={onComputeVulns} disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:opacity-50">
           {computingVulns ? <Spinner /> : <Play className="h-4 w-4" />}
           {computingVulns ? 'Scoring CVEs...' : 'Compute CVE scores'}
+        </button>
+        <button onClick={onComputeAssets} disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:opacity-50">
+          {computingAssets ? <Spinner /> : <Server className="h-4 w-4" />}
+          {computingAssets ? 'Scoring assets...' : 'Compute asset scores'}
         </button>
         <button onClick={onComputeFindings} disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:opacity-50">
           {computingFindings ? <Spinner /> : <Target className="h-4 w-4" />}
@@ -589,15 +648,6 @@ function ValueGroup({ title, values, onChange }: { title: string; values: Record
           </label>
         ))}
       </div>
-    </div>
-  );
-}
-
-function MiniStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md border border-gray-200 bg-white px-3 py-2">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className="text-base font-semibold tabular-nums text-gray-700">{value.toLocaleString()}</div>
     </div>
   );
 }

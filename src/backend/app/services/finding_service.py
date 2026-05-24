@@ -10,10 +10,11 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.models.asset import Asset, AssetComponent, Finding, FindingScore, VulnerabilityProduct
+from app.models.asset import Asset, AssetComponent, AssetScore, Finding, FindingScore, VulnerabilityProduct
 from app.models.vulnerability import Vulnerability, VulnerabilityScore
 from app.schemas.finding import FindingScoringProfile
 from app.schemas.scoring import ScoringProfile
+from app.services.asset_service import compute_asset_scores
 from app.services.cpe import VersionMatcher, cpe_product_candidates
 from app.services.scoring_service import compute_scores, get_scoring_profile
 from app.services.vulnerability_service import backfill_vulnerability_products, get_setting, set_setting
@@ -29,14 +30,7 @@ DEFAULT_FINDING_SCORING_PROFILE: dict[str, Any] = {
     "thresholds": {"P0": 76, "P1": 51, "P2": 26, "P3": 0},
     "weights": {
         "vulnerability_priority": 50,
-        "internet_exposure": 20,
-        "business_criticality": 20,
-        "patch_complexity": 10,
-    },
-    "values": {
-        "internet_exposure": {"internet": 100, "internal": 45, "isolated": 10, "unknown": 65},
-        "business_criticality": {"critical": 100, "high": 75, "medium": 45, "low": 15, "unknown": 65},
-        "patch_complexity": {"high": 100, "medium": 55, "low": 20, "unknown": 65},
+        "asset_priority": 50,
     },
 }
 LEGACY_FINDING_PRIORITY_MAP = {"V0": "P0", "V1": "P1", "V2": "P2", "V3": "P3"}
@@ -330,7 +324,7 @@ async def list_findings(
     stmt = (
         select(Finding)
         .options(
-            joinedload(Finding.asset),
+            joinedload(Finding.asset).joinedload(Asset.score),
             joinedload(Finding.component),
             joinedload(Finding.vulnerability).joinedload(Vulnerability.score),
             joinedload(Finding.score),
@@ -389,12 +383,12 @@ async def save_finding_scoring_profile(session: AsyncSession, profile: FindingSc
 async def compute_finding_scores(session: AsyncSession) -> tuple[int, dict[str, int]]:
     vuln_profile: ScoringProfile = await get_scoring_profile(session)
     await compute_scores(session, vuln_profile)
+    await compute_asset_scores(session)
     profile = (await get_finding_scoring_profile(session)).model_dump()
     weights = profile["weights"]
-    values = profile["values"]
     thresholds = profile["thresholds"]
 
-    params = _score_params(weights, values, thresholds)
+    params = _score_params(weights, thresholds)
     stmt = text(
         """
             INSERT INTO finding_scores (finding_id, priority_score, priority_confidence, priority_level)
@@ -402,105 +396,31 @@ async def compute_finding_scores(session: AsyncSession) -> tuple[int, dict[str, 
                 f.id,
                 ROUND((
                     COALESCE(vs.priority_score, 100) * :vuln_factor +
-                    CASE a.internet_exposure
-                        WHEN 'internet' THEN :exposure_internet
-                        WHEN 'internal' THEN :exposure_internal
-                        WHEN 'isolated' THEN :exposure_isolated
-                        ELSE :exposure_unknown
-                    END * :exposure_factor +
-                    CASE a.business_criticality
-                        WHEN 'critical' THEN :criticality_critical
-                        WHEN 'high' THEN :criticality_high
-                        WHEN 'medium' THEN :criticality_medium
-                        WHEN 'low' THEN :criticality_low
-                        ELSE :criticality_unknown
-                    END * :criticality_factor +
-                    CASE a.patch_complexity
-                        WHEN 'high' THEN :patch_high
-                        WHEN 'medium' THEN :patch_medium
-                        WHEN 'low' THEN :patch_low
-                        ELSE :patch_unknown
-                    END * :patch_factor
+                    COALESCE(ars.priority_score, 100) * :asset_factor
                 )::numeric, 1),
                 ROUND((
                     COALESCE(vs.priority_confidence, 0) * :vuln_conf_factor +
-                    f.match_confidence * :match_conf_factor +
-                    CASE WHEN a.internet_exposure <> 'unknown' THEN 100 ELSE 0 END * :exposure_conf_factor +
-                    CASE WHEN a.business_criticality <> 'unknown' THEN 100 ELSE 0 END * :criticality_conf_factor +
-                    CASE WHEN a.patch_complexity <> 'unknown' THEN 100 ELSE 0 END * :patch_conf_factor
+                    COALESCE(ars.priority_confidence, 0) * :asset_conf_factor +
+                    f.match_confidence * :match_conf_factor
                 )::numeric, 1),
                 CASE
                     WHEN (
                         COALESCE(vs.priority_score, 100) * :vuln_factor +
-                        CASE a.internet_exposure
-                            WHEN 'internet' THEN :exposure_internet
-                            WHEN 'internal' THEN :exposure_internal
-                            WHEN 'isolated' THEN :exposure_isolated
-                            ELSE :exposure_unknown
-                        END * :exposure_factor +
-                        CASE a.business_criticality
-                            WHEN 'critical' THEN :criticality_critical
-                            WHEN 'high' THEN :criticality_high
-                            WHEN 'medium' THEN :criticality_medium
-                            WHEN 'low' THEN :criticality_low
-                            ELSE :criticality_unknown
-                        END * :criticality_factor +
-                        CASE a.patch_complexity
-                            WHEN 'high' THEN :patch_high
-                            WHEN 'medium' THEN :patch_medium
-                            WHEN 'low' THEN :patch_low
-                            ELSE :patch_unknown
-                        END * :patch_factor
+                        COALESCE(ars.priority_score, 100) * :asset_factor
                     ) >= :t_p0 THEN 'P0'
                     WHEN (
                         COALESCE(vs.priority_score, 100) * :vuln_factor +
-                        CASE a.internet_exposure
-                            WHEN 'internet' THEN :exposure_internet
-                            WHEN 'internal' THEN :exposure_internal
-                            WHEN 'isolated' THEN :exposure_isolated
-                            ELSE :exposure_unknown
-                        END * :exposure_factor +
-                        CASE a.business_criticality
-                            WHEN 'critical' THEN :criticality_critical
-                            WHEN 'high' THEN :criticality_high
-                            WHEN 'medium' THEN :criticality_medium
-                            WHEN 'low' THEN :criticality_low
-                            ELSE :criticality_unknown
-                        END * :criticality_factor +
-                        CASE a.patch_complexity
-                            WHEN 'high' THEN :patch_high
-                            WHEN 'medium' THEN :patch_medium
-                            WHEN 'low' THEN :patch_low
-                            ELSE :patch_unknown
-                        END * :patch_factor
+                        COALESCE(ars.priority_score, 100) * :asset_factor
                     ) >= :t_p1 THEN 'P1'
                     WHEN (
                         COALESCE(vs.priority_score, 100) * :vuln_factor +
-                        CASE a.internet_exposure
-                            WHEN 'internet' THEN :exposure_internet
-                            WHEN 'internal' THEN :exposure_internal
-                            WHEN 'isolated' THEN :exposure_isolated
-                            ELSE :exposure_unknown
-                        END * :exposure_factor +
-                        CASE a.business_criticality
-                            WHEN 'critical' THEN :criticality_critical
-                            WHEN 'high' THEN :criticality_high
-                            WHEN 'medium' THEN :criticality_medium
-                            WHEN 'low' THEN :criticality_low
-                            ELSE :criticality_unknown
-                        END * :criticality_factor +
-                        CASE a.patch_complexity
-                            WHEN 'high' THEN :patch_high
-                            WHEN 'medium' THEN :patch_medium
-                            WHEN 'low' THEN :patch_low
-                            ELSE :patch_unknown
-                        END * :patch_factor
+                        COALESCE(ars.priority_score, 100) * :asset_factor
                     ) >= :t_p2 THEN 'P2'
                     ELSE 'P3'
                 END
             FROM findings f
-            JOIN assets a ON a.id = f.asset_id
             LEFT JOIN vulnerability_scores vs ON vs.vulnerability_id = f.vulnerability_id
+            LEFT JOIN asset_scores ars ON ars.asset_id = f.asset_id
             ON CONFLICT (finding_id) DO UPDATE SET
                 priority_score = EXCLUDED.priority_score,
                 priority_confidence = EXCLUDED.priority_confidence,
@@ -520,37 +440,18 @@ async def compute_finding_scores(session: AsyncSession) -> tuple[int, dict[str, 
     return rows, {row[0]: row[1] for row in dist_rows if row[0]}
 
 
-def _score_params(weights: dict[str, float], values: dict[str, dict[str, float]], thresholds: dict[str, float]) -> dict[str, float]:
+def _score_params(weights: dict[str, float], thresholds: dict[str, float]) -> dict[str, float]:
     total_weight = float(sum(weights.values()))
     confidence_total = total_weight + 50.0
     vuln_weight = float(weights["vulnerability_priority"])
-    exposure_weight = float(weights["internet_exposure"])
-    criticality_weight = float(weights["business_criticality"])
-    patch_weight = float(weights["patch_complexity"])
+    asset_weight = float(weights["asset_priority"])
     match_weight = 50.0
     return {
         "vuln_factor": vuln_weight / total_weight,
-        "exposure_factor": exposure_weight / total_weight,
-        "criticality_factor": criticality_weight / total_weight,
-        "patch_factor": patch_weight / total_weight,
+        "asset_factor": asset_weight / total_weight,
         "vuln_conf_factor": vuln_weight / confidence_total,
+        "asset_conf_factor": asset_weight / confidence_total,
         "match_conf_factor": match_weight / confidence_total,
-        "exposure_conf_factor": exposure_weight / confidence_total,
-        "criticality_conf_factor": criticality_weight / confidence_total,
-        "patch_conf_factor": patch_weight / confidence_total,
-        "exposure_internet": float(values["internet_exposure"]["internet"]),
-        "exposure_internal": float(values["internet_exposure"]["internal"]),
-        "exposure_isolated": float(values["internet_exposure"]["isolated"]),
-        "exposure_unknown": float(values["internet_exposure"]["unknown"]),
-        "criticality_critical": float(values["business_criticality"]["critical"]),
-        "criticality_high": float(values["business_criticality"]["high"]),
-        "criticality_medium": float(values["business_criticality"]["medium"]),
-        "criticality_low": float(values["business_criticality"]["low"]),
-        "criticality_unknown": float(values["business_criticality"]["unknown"]),
-        "patch_high": float(values["patch_complexity"]["high"]),
-        "patch_medium": float(values["patch_complexity"]["medium"]),
-        "patch_low": float(values["patch_complexity"]["low"]),
-        "patch_unknown": float(values["patch_complexity"]["unknown"]),
         "t_p0": float(thresholds["P0"]),
         "t_p1": float(thresholds["P1"]),
         "t_p2": float(thresholds["P2"]),
@@ -613,4 +514,20 @@ def _normalize_finding_scoring_profile(raw: dict[str, Any]) -> dict[str, Any]:
             "P2": thresholds.get("V2"),
             "P3": thresholds.get("V3"),
         }}
+    weights = raw.get("weights")
+    if isinstance(weights, dict) and "asset_priority" not in weights:
+        asset_weight = (
+            float(weights.get("internet_exposure") or 0)
+            + float(weights.get("business_criticality") or 0)
+            + float(weights.get("patch_complexity") or 0)
+        )
+        raw = {
+            **raw,
+            "weights": {
+                "vulnerability_priority": weights.get("vulnerability_priority", 50),
+                "asset_priority": asset_weight if asset_weight > 0 else 50,
+            },
+        }
+    if "values" in raw:
+        raw = {key: value for key, value in raw.items() if key != "values"}
     return raw

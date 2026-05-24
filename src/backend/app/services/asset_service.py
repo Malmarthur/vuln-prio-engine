@@ -4,12 +4,14 @@ import logging
 from typing import Any, Iterable
 from uuid import UUID
 
-from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy import Float, and_, bindparam, delete, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 
-from app.models.asset import Asset, AssetComponent
+from app.models.asset import Asset, AssetComponent, AssetScore
+from app.schemas.asset import AssetScoringProfile
 from app.services.cpe import cpe_fields
+from app.services.vulnerability_service import get_setting, set_setting
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +19,19 @@ ASSET_METRICS = {
     "internet_exposure": {"internet", "internal", "isolated", "unknown"},
     "business_criticality": {"critical", "high", "medium", "low", "unknown"},
     "patch_complexity": {"high", "medium", "low", "unknown"},
+}
+DEFAULT_ASSET_SCORING_PROFILE: dict[str, Any] = {
+    "thresholds": {"A0": 76, "A1": 51, "A2": 26, "A3": 0},
+    "weights": {
+        "internet_exposure": 40,
+        "business_criticality": 40,
+        "patch_complexity": 20,
+    },
+    "values": {
+        "internet_exposure": {"internet": 100, "internal": 45, "isolated": 10, "unknown": 65},
+        "business_criticality": {"critical": 100, "high": 75, "medium": 45, "low": 15, "unknown": 65},
+        "patch_complexity": {"high": 100, "medium": 55, "low": 20, "unknown": 65},
+    },
 }
 
 _METRIC_PROPERTY_NAMES = {
@@ -72,19 +87,24 @@ async def list_assets(
     internet_exposure: str | None = None,
     business_criticality: str | None = None,
     patch_complexity: str | None = None,
+    priority_level: str | None = None,
 ) -> tuple[list[Asset], int]:
-    filters = _asset_filters(search, internet_exposure, business_criticality, patch_complexity)
+    filters = _asset_filters(search, internet_exposure, business_criticality, patch_complexity, priority_level)
     where_clause = and_(*filters) if filters else None
+    needs_score_join = priority_level is not None
 
     count_stmt = select(func.count(Asset.id))
+    if needs_score_join:
+        count_stmt = count_stmt.outerjoin(AssetScore)
     if where_clause is not None:
         count_stmt = count_stmt.where(where_clause)
     total = (await session.execute(count_stmt)).scalar_one()
 
     stmt = (
         select(Asset)
-        .options(selectinload(Asset.components))
-        .order_by(Asset.updated_at.desc().nulls_last())
+        .options(selectinload(Asset.components), joinedload(Asset.score))
+        .outerjoin(AssetScore)
+        .order_by(AssetScore.priority_score.desc().nulls_last(), Asset.updated_at.desc().nulls_last())
         .offset((page - 1) * per_page)
         .limit(per_page)
     )
@@ -97,7 +117,7 @@ async def list_assets(
 async def get_asset(session: AsyncSession, asset_id: UUID) -> Asset | None:
     result = await session.execute(
         select(Asset)
-        .options(selectinload(Asset.components))
+        .options(selectinload(Asset.components), joinedload(Asset.score))
         .where(Asset.id == asset_id)
     )
     return result.scalar_one_or_none()
@@ -105,6 +125,9 @@ async def get_asset(session: AsyncSession, asset_id: UUID) -> Asset | None:
 
 async def get_asset_stats(session: AsyncSession) -> dict[str, Any]:
     total = (await session.execute(select(func.count(Asset.id)))).scalar_one()
+    scored = (
+        await session.execute(select(func.count(AssetScore.asset_id)).where(AssetScore.priority_score.is_not(None)))
+    ).scalar_one()
     components = (await session.execute(select(func.count(AssetComponent.id)))).scalar_one()
     with_cpe = (
         await session.execute(select(func.count(AssetComponent.id)).where(AssetComponent.cpe.is_not(None)))
@@ -115,12 +138,176 @@ async def get_asset_stats(session: AsyncSession) -> dict[str, Any]:
     criticality_rows = (
         await session.execute(select(Asset.business_criticality, func.count(Asset.id)).group_by(Asset.business_criticality))
     ).all()
+    priority_rows = (
+        await session.execute(select(AssetScore.priority_level, func.count(AssetScore.asset_id)).group_by(AssetScore.priority_level))
+    ).all()
     return {
         "total_assets": total,
+        "scored_assets": scored,
+        "unscored_assets": total - scored,
         "total_components": components,
         "components_with_cpe": with_cpe,
+        "priority_distribution": {row[0]: row[1] for row in priority_rows if row[0]},
         "exposure_distribution": {row[0]: row[1] for row in exposure_rows},
         "criticality_distribution": {row[0]: row[1] for row in criticality_rows},
+    }
+
+
+async def get_asset_scoring_profile(session: AsyncSession) -> AssetScoringProfile:
+    raw = await get_setting(session, "asset_scoring_profile") or DEFAULT_ASSET_SCORING_PROFILE
+    return AssetScoringProfile.model_validate(raw)
+
+
+async def save_asset_scoring_profile(session: AsyncSession, profile: AssetScoringProfile) -> None:
+    await set_setting(session, "asset_scoring_profile", profile.model_dump())
+
+
+async def compute_asset_scores(session: AsyncSession) -> tuple[int, dict[str, int]]:
+    profile = (await get_asset_scoring_profile(session)).model_dump()
+    params = _asset_score_params(profile["weights"], profile["values"], profile["thresholds"])
+    stmt = text(
+        """
+        INSERT INTO asset_scores (asset_id, priority_score, priority_confidence, priority_level)
+        SELECT
+            a.id,
+            ROUND((
+                CASE a.internet_exposure
+                    WHEN 'internet' THEN :exposure_internet
+                    WHEN 'internal' THEN :exposure_internal
+                    WHEN 'isolated' THEN :exposure_isolated
+                    ELSE :exposure_unknown
+                END * :exposure_factor +
+                CASE a.business_criticality
+                    WHEN 'critical' THEN :criticality_critical
+                    WHEN 'high' THEN :criticality_high
+                    WHEN 'medium' THEN :criticality_medium
+                    WHEN 'low' THEN :criticality_low
+                    ELSE :criticality_unknown
+                END * :criticality_factor +
+                CASE a.patch_complexity
+                    WHEN 'high' THEN :patch_high
+                    WHEN 'medium' THEN :patch_medium
+                    WHEN 'low' THEN :patch_low
+                    ELSE :patch_unknown
+                END * :patch_factor
+            )::numeric, 1),
+            ROUND((
+                CASE WHEN a.internet_exposure <> 'unknown' THEN 100 ELSE 0 END * :exposure_factor +
+                CASE WHEN a.business_criticality <> 'unknown' THEN 100 ELSE 0 END * :criticality_factor +
+                CASE WHEN a.patch_complexity <> 'unknown' THEN 100 ELSE 0 END * :patch_factor
+            )::numeric, 1),
+            CASE
+                WHEN (
+                    CASE a.internet_exposure
+                        WHEN 'internet' THEN :exposure_internet
+                        WHEN 'internal' THEN :exposure_internal
+                        WHEN 'isolated' THEN :exposure_isolated
+                        ELSE :exposure_unknown
+                    END * :exposure_factor +
+                    CASE a.business_criticality
+                        WHEN 'critical' THEN :criticality_critical
+                        WHEN 'high' THEN :criticality_high
+                        WHEN 'medium' THEN :criticality_medium
+                        WHEN 'low' THEN :criticality_low
+                        ELSE :criticality_unknown
+                    END * :criticality_factor +
+                    CASE a.patch_complexity
+                        WHEN 'high' THEN :patch_high
+                        WHEN 'medium' THEN :patch_medium
+                        WHEN 'low' THEN :patch_low
+                        ELSE :patch_unknown
+                    END * :patch_factor
+                ) >= :t_a0 THEN 'A0'
+                WHEN (
+                    CASE a.internet_exposure
+                        WHEN 'internet' THEN :exposure_internet
+                        WHEN 'internal' THEN :exposure_internal
+                        WHEN 'isolated' THEN :exposure_isolated
+                        ELSE :exposure_unknown
+                    END * :exposure_factor +
+                    CASE a.business_criticality
+                        WHEN 'critical' THEN :criticality_critical
+                        WHEN 'high' THEN :criticality_high
+                        WHEN 'medium' THEN :criticality_medium
+                        WHEN 'low' THEN :criticality_low
+                        ELSE :criticality_unknown
+                    END * :criticality_factor +
+                    CASE a.patch_complexity
+                        WHEN 'high' THEN :patch_high
+                        WHEN 'medium' THEN :patch_medium
+                        WHEN 'low' THEN :patch_low
+                        ELSE :patch_unknown
+                    END * :patch_factor
+                ) >= :t_a1 THEN 'A1'
+                WHEN (
+                    CASE a.internet_exposure
+                        WHEN 'internet' THEN :exposure_internet
+                        WHEN 'internal' THEN :exposure_internal
+                        WHEN 'isolated' THEN :exposure_isolated
+                        ELSE :exposure_unknown
+                    END * :exposure_factor +
+                    CASE a.business_criticality
+                        WHEN 'critical' THEN :criticality_critical
+                        WHEN 'high' THEN :criticality_high
+                        WHEN 'medium' THEN :criticality_medium
+                        WHEN 'low' THEN :criticality_low
+                        ELSE :criticality_unknown
+                    END * :criticality_factor +
+                    CASE a.patch_complexity
+                        WHEN 'high' THEN :patch_high
+                        WHEN 'medium' THEN :patch_medium
+                        WHEN 'low' THEN :patch_low
+                        ELSE :patch_unknown
+                    END * :patch_factor
+                ) >= :t_a2 THEN 'A2'
+                ELSE 'A3'
+            END
+        FROM assets a
+        ON CONFLICT (asset_id) DO UPDATE SET
+            priority_score = EXCLUDED.priority_score,
+            priority_confidence = EXCLUDED.priority_confidence,
+            priority_level = EXCLUDED.priority_level
+        """
+    ).bindparams(*[bindparam(name, type_=Float) for name in params])
+    await session.execute(stmt, params)
+    await session.commit()
+
+    rows = (await session.execute(select(func.count(AssetScore.asset_id)))).scalar_one()
+    dist_rows = (
+        await session.execute(select(AssetScore.priority_level, func.count(AssetScore.asset_id)).group_by(AssetScore.priority_level))
+    ).all()
+    return rows, {row[0]: row[1] for row in dist_rows if row[0]}
+
+
+def _asset_score_params(
+    weights: dict[str, float],
+    values: dict[str, dict[str, float]],
+    thresholds: dict[str, float],
+) -> dict[str, float]:
+    total_weight = float(sum(weights.values()))
+    exposure_weight = float(weights["internet_exposure"])
+    criticality_weight = float(weights["business_criticality"])
+    patch_weight = float(weights["patch_complexity"])
+    return {
+        "exposure_factor": exposure_weight / total_weight,
+        "criticality_factor": criticality_weight / total_weight,
+        "patch_factor": patch_weight / total_weight,
+        "exposure_internet": float(values["internet_exposure"]["internet"]),
+        "exposure_internal": float(values["internet_exposure"]["internal"]),
+        "exposure_isolated": float(values["internet_exposure"]["isolated"]),
+        "exposure_unknown": float(values["internet_exposure"]["unknown"]),
+        "criticality_critical": float(values["business_criticality"]["critical"]),
+        "criticality_high": float(values["business_criticality"]["high"]),
+        "criticality_medium": float(values["business_criticality"]["medium"]),
+        "criticality_low": float(values["business_criticality"]["low"]),
+        "criticality_unknown": float(values["business_criticality"]["unknown"]),
+        "patch_high": float(values["patch_complexity"]["high"]),
+        "patch_medium": float(values["patch_complexity"]["medium"]),
+        "patch_low": float(values["patch_complexity"]["low"]),
+        "patch_unknown": float(values["patch_complexity"]["unknown"]),
+        "t_a0": float(thresholds["A0"]),
+        "t_a1": float(thresholds["A1"]),
+        "t_a2": float(thresholds["A2"]),
     }
 
 
@@ -129,6 +316,7 @@ def _asset_filters(
     internet_exposure: str | None,
     business_criticality: str | None,
     patch_complexity: str | None,
+    priority_level: str | None,
 ) -> list[Any]:
     filters: list[Any] = []
     if search:
@@ -139,6 +327,8 @@ def _asset_filters(
         filters.append(Asset.business_criticality == business_criticality)
     if patch_complexity:
         filters.append(Asset.patch_complexity == patch_complexity)
+    if priority_level:
+        filters.append(AssetScore.priority_level == priority_level)
     return filters
 
 
