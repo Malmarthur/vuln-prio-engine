@@ -2,13 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ColumnConfig,
   EligibleColumn,
+  FindingStats,
   ScoreDistribution,
   ScoringProfile,
   fetchColumnValues,
   fetchEligibleColumns,
+  fetchFindingStats,
   fetchScoreDistribution,
   fetchScoringProfile,
   resetScoringProfile,
+  runFindingScoring,
   runScoring,
   saveScoringProfile,
 } from '../api/client';
@@ -28,12 +31,13 @@ import { HorizontalBar, PRIORITY_COLORS } from './scoring/helpers';
 export default function ScoringPanel() {
   const [profile, setProfile] = useState<ScoringProfile | null>(null);
   const [distribution, setDistribution] = useState<ScoreDistribution | null>(null);
+  const [findingStats, setFindingStats] = useState<FindingStats | null>(null);
   const [eligibleColumns, setEligibleColumns] = useState<Record<string, EligibleColumn> | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [computing, setComputing] = useState(false);
+  const [computingFindings, setComputingFindings] = useState(false);
   const [elapsedMs, setElapsedMs] = useState<number>(0);
-  const [lastComputeMs, setLastComputeMs] = useState<number | null>(null);
   const computeStartRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -54,11 +58,13 @@ export default function ScoringPanel() {
       fetchScoringProfile(),
       fetchScoreDistribution(),
       fetchEligibleColumns(),
+      fetchFindingStats(),
     ])
-      .then(([p, d, ec]) => {
+      .then(([p, d, ec, fs]) => {
         setProfile(p);
         setDistribution(d);
         setEligibleColumns(ec);
+        setFindingStats(fs);
       })
       .catch((e) => setError(getErrorMessage(e)))
       .finally(() => setLoading(false));
@@ -186,8 +192,6 @@ export default function ScoringPanel() {
       // Save first, then compute
       await saveScoringProfile(profile);
       const res = await runScoring();
-      const elapsed = performance.now() - (computeStartRef.current ?? performance.now());
-      setLastComputeMs(elapsed);
       setMsg(`Scored ${res.rows_updated.toLocaleString()} CVEs`);
       setTimeout(() => setMsg(null), 3000);
       const d = await fetchScoreDistribution();
@@ -197,6 +201,21 @@ export default function ScoringPanel() {
     } finally {
       if (timerRef.current) clearInterval(timerRef.current);
       setComputing(false);
+    }
+  };
+
+  const handleFindingCompute = async () => {
+    setComputingFindings(true);
+    try {
+      const res = await runFindingScoring();
+      setMsg(`Scored ${res.rows_updated.toLocaleString()} findings`);
+      setTimeout(() => setMsg(null), 3000);
+      const fs = await fetchFindingStats();
+      setFindingStats(fs);
+    } catch (e) {
+      setMsg(`Error: ${getErrorMessage(e)}`);
+    } finally {
+      setComputingFindings(false);
     }
   };
 
@@ -315,9 +334,6 @@ export default function ScoringPanel() {
       {/* ── Priority Thresholds ─────────────────────────────────────────── */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Priority Thresholds</h2>
-        <p className="text-sm text-gray-500 mb-4">
-          Minimum score to reach each priority level. V0 is highest severity.
-        </p>
         <div className="flex flex-wrap gap-4">
           {['V0', 'V1', 'V2', 'V3'].map((level) => (
             <label key={level} className="flex items-center gap-2">
@@ -345,14 +361,14 @@ export default function ScoringPanel() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
         <div className="flex flex-wrap gap-3 items-center">
           <button
-            disabled={saving || computing}
+            disabled={saving || computing || computingFindings}
             onClick={handleSave}
             className="px-4 py-2 bg-white border border-gray-300 text-sm font-medium rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
           >
             {saving ? 'Saving…' : 'Save Profile'}
           </button>
           <button
-            disabled={saving || computing}
+            disabled={saving || computing || computingFindings}
             onClick={handleCompute}
             className="relative px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 disabled:opacity-50 transition-colors min-w-[160px]"
           >
@@ -367,20 +383,22 @@ export default function ScoringPanel() {
               'Compute Scores'
             )}
           </button>
-          {!computing && lastComputeMs !== null && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 text-xs font-mono rounded-md">
-              <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <circle cx="12" cy="12" r="10" />
-                <path strokeLinecap="round" d="M12 6v6l3 3" />
-              </svg>
-              {(lastComputeMs / 1000).toFixed(2)}s
-            </span>
-          )}
-          <span className="text-xs text-gray-400">
-            Saves the current profile, then scores all CVEs in the database.
-          </span>
           <button
-            disabled={saving || computing}
+            disabled={saving || computing || computingFindings}
+            onClick={handleFindingCompute}
+            className="px-4 py-2 bg-white border border-gray-300 text-sm font-medium rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors min-w-[140px]"
+          >
+            {computingFindings ? (
+              <span className="flex items-center gap-2 justify-center">
+                <span className="inline-block w-3.5 h-3.5 border-2 border-gray-300 border-t-gray-700 rounded-full animate-spin" />
+                Scoring…
+              </span>
+            ) : (
+              'Score Findings'
+            )}
+          </button>
+          <button
+            disabled={saving || computing || computingFindings}
             onClick={handleReset}
             className="ml-auto px-3 py-1.5 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md disabled:opacity-50 transition-colors"
           >
@@ -388,6 +406,35 @@ export default function ScoringPanel() {
           </button>
         </div>
       </div>
+
+      {findingStats && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Finding Priorities</h2>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
+                <span>{findingStats.total_findings.toLocaleString()} total</span>
+                <span>{findingStats.scored_findings.toLocaleString()} scored</span>
+                {findingStats.unscored_findings > 0 && (
+                  <span>{findingStats.unscored_findings.toLocaleString()} unscored</span>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-4 gap-2 min-w-full sm:min-w-[280px]">
+              {['P0', 'P1', 'P2', 'P3'].map((level) => (
+                <div key={level} className="rounded-md border border-gray-200 px-3 py-2 text-center">
+                  <div className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded ${PRIORITY_COLORS[level]?.badge ?? ''}`}>
+                    {level}
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {(findingStats.priority_distribution[level] ?? 0).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Distribution Charts ─────────────────────────────────────────── */}
       {distribution && (

@@ -8,7 +8,9 @@ interface LayoutProps {
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
-  { id: 'scoring', label: 'Scoring' },
+  { id: 'vulnerabilities', label: 'Vulnerabilities' },
+  { id: 'assets', label: 'Assets' },
+  { id: 'findings', label: 'Findings' },
   { id: 'settings', label: 'Settings' },
 ];
 

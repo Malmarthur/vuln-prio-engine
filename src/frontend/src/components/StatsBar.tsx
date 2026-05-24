@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchStats, VulnerabilityStats } from '../api/client';
+import CompactKpi, { CompactKpiStrip } from './CompactKpi';
 
 const SEV_ORDER = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'NONE'] as const;
 const SEV_COLORS: Record<string, string> = {
@@ -9,24 +10,6 @@ const SEV_COLORS: Record<string, string> = {
   LOW: 'text-blue-500',
   NONE: 'text-gray-400',
 };
-
-interface StatCardProps {
-  label: string;
-  value: string;
-  sub?: string;
-}
-
-function StatCard({ label, value, sub }: StatCardProps) {
-  return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-3">
-      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-        {label}
-      </p>
-      <p className="mt-1 text-2xl font-semibold text-gray-900">{value}</p>
-      {sub && <p className="text-xs text-gray-500 mt-0.5">{sub}</p>}
-    </div>
-  );
-}
 
 export default function StatsBar() {
   const [stats, setStats] = useState<VulnerabilityStats | null>(null);
@@ -46,11 +29,11 @@ export default function StatsBar() {
 
   if (!stats) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {[...Array(4)].map((_, i) => (
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        {[...Array(6)].map((_, i) => (
           <div
             key={i}
-            className="bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-3 animate-pulse h-20"
+            className="h-[70px] animate-pulse rounded-md border border-gray-200 bg-white"
           />
         ))}
       </div>
@@ -60,27 +43,22 @@ export default function StatsBar() {
   const sevDist = stats.severity_distribution || {};
 
   return (
-    <div className="mb-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Total CVEs" value={stats.total.toLocaleString()} />
-        <StatCard
-          label="KEV Exploited"
-          value={stats.kev_count.toLocaleString()}
-        />
-        <StatCard
+    <div className="mb-4">
+      <CompactKpiStrip>
+        <CompactKpi label="Total CVEs" value={stats.total.toLocaleString()} />
+        <CompactKpi label="KEV exploited" value={stats.kev_count.toLocaleString()} tone="red" />
+        <CompactKpi
           label="EPSS Coverage"
           value={stats.epss_covered.toLocaleString()}
-          sub={
+          detail={
             stats.avg_epss_score != null
               ? `Avg: ${(stats.avg_epss_score * 100).toFixed(2)}%`
               : undefined
           }
         />
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-3">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Severity (CVSS 3.1)
-          </p>
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-sm">
+        <div className="col-span-2 min-w-0 rounded-md border border-gray-200 bg-white px-3 py-2 lg:col-span-3">
+          <p className="truncate text-[11px] font-medium uppercase text-gray-500">Severity (CVSS 3.1)</p>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
             {SEV_ORDER.map((s) =>
               sevDist[s] ? (
                 <span key={s} className={`font-medium ${SEV_COLORS[s]}`}>
@@ -90,7 +68,7 @@ export default function StatsBar() {
             )}
           </div>
         </div>
-      </div>
+      </CompactKpiStrip>
     </div>
   );
 }

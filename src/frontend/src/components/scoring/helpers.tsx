@@ -7,6 +7,10 @@ export const PRIORITY_COLORS: Record<string, { bar: string; badge: string }> = {
   V1: { bar: 'bg-orange-500', badge: 'bg-orange-100 text-orange-700' },
   V2: { bar: 'bg-yellow-400', badge: 'bg-yellow-100 text-yellow-800' },
   V3: { bar: 'bg-green-500',  badge: 'bg-green-100 text-green-700' },
+  P0: { bar: 'bg-red-500',    badge: 'bg-red-100 text-red-700' },
+  P1: { bar: 'bg-orange-500', badge: 'bg-orange-100 text-orange-700' },
+  P2: { bar: 'bg-yellow-400', badge: 'bg-yellow-100 text-yellow-800' },
+  P3: { bar: 'bg-green-500',  badge: 'bg-green-100 text-green-700' },
 };
 
 export function TypeBadge({ type }: { type: string }) {

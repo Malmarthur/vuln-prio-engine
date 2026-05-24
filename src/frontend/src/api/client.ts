@@ -124,6 +124,136 @@ export interface ScoreDistribution {
   unscored_count: number;
 }
 
+// --- Asset / finding types ---
+
+export interface AssetComponent {
+  id: string;
+  bom_ref: string | null;
+  name: string;
+  version: string | null;
+  vendor: string | null;
+  product: string | null;
+  purl: string | null;
+  cpe: string | null;
+  cpe_vendor: string | null;
+  cpe_product: string | null;
+  cpe_version: string | null;
+}
+
+export interface Asset {
+  id: string;
+  external_id: string;
+  name: string;
+  asset_type: string;
+  source: string;
+  internet_exposure: string;
+  business_criticality: string;
+  patch_complexity: string;
+  created_at: string | null;
+  updated_at: string | null;
+  components: AssetComponent[];
+  component_count: number;
+  cpe_count: number;
+  raw_payload?: Record<string, unknown> | null;
+}
+
+export interface PaginatedAssets {
+  total: number;
+  page: number;
+  per_page: number;
+  items: Asset[];
+}
+
+export interface AssetStats {
+  total_assets: number;
+  total_components: number;
+  components_with_cpe: number;
+  exposure_distribution: Record<string, number>;
+  criticality_distribution: Record<string, number>;
+}
+
+export interface CycloneDXImportResponse {
+  asset: Asset;
+  component_count: number;
+}
+
+export interface Finding {
+  id: string;
+  match_type: string;
+  match_confidence: number;
+  status: string;
+  first_seen_at: string | null;
+  last_seen_at: string | null;
+  priority_level: string | null;
+  priority_score: number | null;
+  priority_confidence: number | null;
+  asset: {
+    id: string;
+    name: string;
+    internet_exposure: string;
+    business_criticality: string;
+    patch_complexity: string;
+  };
+  component: {
+    id: string;
+    name: string;
+    version: string | null;
+    vendor: string | null;
+    product: string | null;
+    purl: string | null;
+    cpe: string | null;
+    cpe_vendor: string | null;
+    cpe_product: string | null;
+    cpe_version: string | null;
+  };
+  vulnerability: {
+    id: string;
+    cve_id: string;
+    summary: string | null;
+    cvss_v31_score: number | null;
+    epss_score: number | null;
+    kev_known_exploited: boolean | null;
+    vulnerability_priority_level: string | null;
+    vulnerability_priority_score: number | null;
+  };
+}
+
+export interface PaginatedFindings {
+  total: number;
+  page: number;
+  per_page: number;
+  items: Finding[];
+}
+
+export interface FindingStats {
+  total_findings: number;
+  scored_findings: number;
+  unscored_findings: number;
+  priority_distribution: Record<string, number>;
+  exposure_distribution: Record<string, number>;
+}
+
+export interface MatchingRunResponse {
+  components_processed: number;
+  candidates: number;
+  findings_matched: number;
+}
+
+export interface FindingScoringProfile {
+  thresholds: Record<'P0' | 'P1' | 'P2' | 'P3', number>;
+  weights: {
+    vulnerability_priority: number;
+    internet_exposure: number;
+    business_criticality: number;
+    patch_complexity: number;
+  };
+  values: {
+    internet_exposure: Record<'internet' | 'internal' | 'isolated' | 'unknown', number>;
+    business_criticality: Record<'critical' | 'high' | 'medium' | 'low' | 'unknown', number>;
+    patch_complexity: Record<'high' | 'medium' | 'low' | 'unknown', number>;
+  };
+}
+
 // --- Internal helpers ---
 
 type QueryParams = Record<string, string | number | boolean | null | undefined>;
@@ -229,4 +359,56 @@ export function fetchScoreDistribution(): Promise<ScoreDistribution> {
 
 export function fetchEligibleColumns(): Promise<Record<string, EligibleColumn>> {
   return request<Record<string, EligibleColumn>>('/scoring/eligible-columns');
+}
+
+// --- Asset / finding API functions ---
+
+export function fetchAssets(params: QueryParams = {}, signal?: AbortSignal): Promise<PaginatedAssets> {
+  return request<PaginatedAssets>(`/assets${toQuery(params)}`, { signal });
+}
+
+export function fetchAsset(id: string, signal?: AbortSignal): Promise<Asset> {
+  return request<Asset>(`/assets/${encodeURIComponent(id)}`, { signal });
+}
+
+export function fetchAssetStats(): Promise<AssetStats> {
+  return request<AssetStats>('/assets/stats');
+}
+
+export function importCycloneDXAsset(payload: Record<string, unknown>): Promise<CycloneDXImportResponse> {
+  return request<CycloneDXImportResponse>('/assets/import/cyclonedx', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchFindings(params: QueryParams = {}, signal?: AbortSignal): Promise<PaginatedFindings> {
+  return request<PaginatedFindings>(`/findings${toQuery(params)}`, { signal });
+}
+
+export function fetchFindingStats(): Promise<FindingStats> {
+  return request<FindingStats>('/findings/stats');
+}
+
+export function runFindingMatching(): Promise<MatchingRunResponse> {
+  return request<MatchingRunResponse>('/findings/match/run', { method: 'POST' });
+}
+
+export function runFindingScoring(): Promise<ScoringRunResponse> {
+  return request<ScoringRunResponse>('/findings/scoring/run', { method: 'POST' });
+}
+
+export function fetchFindingScoringProfile(): Promise<FindingScoringProfile> {
+  return request<FindingScoringProfile>('/findings/scoring/profile');
+}
+
+export function saveFindingScoringProfile(profile: FindingScoringProfile): Promise<FindingScoringProfile> {
+  return request<FindingScoringProfile>('/findings/scoring/profile', {
+    method: 'PUT',
+    body: JSON.stringify(profile),
+  });
+}
+
+export function resetFindingScoringProfile(): Promise<FindingScoringProfile> {
+  return request<FindingScoringProfile>('/findings/scoring/profile', { method: 'DELETE' });
 }

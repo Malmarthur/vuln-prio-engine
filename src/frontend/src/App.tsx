@@ -1,10 +1,12 @@
 import { lazy, Suspense, useState } from 'react';
 import Layout from './components/Layout';
+import DashboardPanel from './components/DashboardPanel';
 import StatsBar from './components/StatsBar';
 import VulnTable from './components/VulnTable';
 
-const ScoringPanel = lazy(() => import('./components/ScoringPanel'));
 const SettingsPanel = lazy(() => import('./components/SettingsPanel'));
+const AssetsPanel = lazy(() => import('./components/AssetsPanel'));
+const FindingsPanel = lazy(() => import('./components/FindingsPanel'));
 
 export default function App() {
   const [tab, setTab] = useState('dashboard');
@@ -13,12 +15,16 @@ export default function App() {
     <Layout activeTab={tab} onTabChange={setTab}>
       <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading…</div>}>
         {tab === 'dashboard' ? (
+          <DashboardPanel />
+        ) : tab === 'vulnerabilities' ? (
           <>
             <StatsBar />
             <VulnTable />
           </>
-        ) : tab === 'scoring' ? (
-          <ScoringPanel />
+        ) : tab === 'assets' ? (
+          <AssetsPanel />
+        ) : tab === 'findings' ? (
+          <FindingsPanel />
         ) : (
           <SettingsPanel />
         )}
