@@ -1,0 +1,53 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:700736c0-37c9-42b1-841b-d1e6d4e480a4",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:vcenter-prod-01",
+      "name": "vcenter-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Virtualization management plane"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "critical"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "high"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/vmware-vmware-vcenter-server@7.0",
+      "name": "VMware vCenter Server",
+      "version": "7.0",
+      "publisher": "VMware",
+      "purl": "pkg:generic/vmware-vmware-vcenter-server@7.0",
+      "cpe": "cpe:2.3:a:vmware:vcenter_server:7.0:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/vmware-vmware-esxi@7.0",
+      "name": "VMware ESXi",
+      "version": "7.0",
+      "publisher": "VMware",
+      "purl": "pkg:generic/vmware-vmware-esxi@7.0",
+      "cpe": "cpe:2.3:o:vmware:esxi:7.0:*:*:*:*:*:*:*"
+    }
+  ]
+}

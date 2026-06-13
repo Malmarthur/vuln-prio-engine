@@ -1,0 +1,44 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:c4cad522-45b6-43cb-8d66-cadf8504a3f0",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "device",
+      "bom-ref": "asset:ad-domain-controller-02",
+      "name": "ad-domain-controller-02",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Secondary Active Directory domain controller"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "critical"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "high"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/microsoft-microsoft-windows-server-2022@21H2",
+      "name": "Microsoft Windows Server 2022",
+      "version": "21H2",
+      "publisher": "Microsoft",
+      "purl": "pkg:generic/microsoft-microsoft-windows-server-2022@21H2",
+      "cpe": "cpe:2.3:o:microsoft:windows_server_2022:21H2:*:*:*:*:*:*:*"
+    }
+  ]
+}

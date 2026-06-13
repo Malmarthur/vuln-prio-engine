@@ -1,0 +1,80 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:fd897e7f-eb6c-48c5-8f49-fa0c8a0da30c",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:marketing-cms-prod-01",
+      "name": "marketing-cms-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Public marketing CMS"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internet"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "medium"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "medium"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/canonical-ubuntu-linux@20.04",
+      "name": "Ubuntu Linux",
+      "version": "20.04",
+      "publisher": "Canonical",
+      "purl": "pkg:generic/canonical-ubuntu-linux@20.04",
+      "cpe": "cpe:2.3:o:canonical:ubuntu_linux:20.04:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/apache-software-foundation-apache-http-server@2.4.54",
+      "name": "Apache HTTP Server",
+      "version": "2.4.54",
+      "publisher": "Apache Software Foundation",
+      "purl": "pkg:generic/apache-software-foundation-apache-http-server@2.4.54",
+      "cpe": "cpe:2.3:a:apache:http_server:2.4.54:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/wordpress-wordpress@5.8.3",
+      "name": "WordPress",
+      "version": "5.8.3",
+      "publisher": "WordPress",
+      "purl": "pkg:generic/wordpress-wordpress@5.8.3",
+      "cpe": "cpe:2.3:a:wordpress:wordpress:5.8.3:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/oracle-mysql@8.0.30",
+      "name": "MySQL",
+      "version": "8.0.30",
+      "publisher": "Oracle",
+      "purl": "pkg:generic/oracle-mysql@8.0.30",
+      "cpe": "cpe:2.3:a:oracle:mysql:8.0.30:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:generic/openssl-openssl@1.1.1",
+      "name": "OpenSSL",
+      "version": "1.1.1",
+      "publisher": "OpenSSL",
+      "purl": "pkg:generic/openssl-openssl@1.1.1",
+      "cpe": "cpe:2.3:a:openssl:openssl:1.1.1:*:*:*:*:*:*:*"
+    }
+  ]
+}

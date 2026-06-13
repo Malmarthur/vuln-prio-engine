@@ -2,22 +2,22 @@
   "bomFormat": "CycloneDX",
   "specVersion": "1.6",
   "version": 1,
-  "serialNumber": "urn:uuid:b521fcb2-1c87-4b70-89ff-01b820025136",
+  "serialNumber": "urn:uuid:11376ca3-7381-4b87-8fff-b0df1856569e",
   "metadata": {
     "timestamp": "2026-05-23T09:00:00Z",
     "component": {
-      "type": "application",
-      "bom-ref": "asset:web-gateway-prod-01",
-      "name": "web-gateway-prod-01",
+      "type": "device",
+      "bom-ref": "asset:building-bms-hq-01",
+      "name": "building-bms-hq-01",
       "version": "2026.05",
       "properties": [
         {
           "name": "vulnprio:scenario",
-          "value": "Internet-facing reverse proxy / web gateway"
+          "value": "Building management server for HVAC and access schedules"
         },
         {
           "name": "vulnprio:internet_exposure",
-          "value": "internet"
+          "value": "isolated"
         },
         {
           "name": "vulnprio:business_criticality",
@@ -32,6 +32,15 @@
   },
   "components": [
     {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/microsoft-microsoft-windows-server-2016@1607",
+      "name": "Microsoft Windows Server 2016",
+      "version": "1607",
+      "publisher": "Microsoft",
+      "purl": "pkg:generic/microsoft-microsoft-windows-server-2016@1607",
+      "cpe": "cpe:2.3:o:microsoft:windows_server_2016:1607:*:*:*:*:*:*:*"
+    },
+    {
       "type": "application",
       "bom-ref": "pkg:generic/apache-software-foundation-apache-http-server@2.4.49",
       "name": "Apache HTTP Server",
@@ -41,15 +50,6 @@
       "cpe": "cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*"
     },
     {
-      "type": "application",
-      "bom-ref": "pkg:generic/nginx-nginx@1.14.0",
-      "name": "nginx",
-      "version": "1.14.0",
-      "publisher": "nginx",
-      "purl": "pkg:generic/nginx-nginx@1.14.0",
-      "cpe": "cpe:2.3:a:nginx:nginx:1.14.0:*:*:*:*:*:*:*"
-    },
-    {
       "type": "library",
       "bom-ref": "pkg:generic/openssl-openssl@1.0.1",
       "name": "OpenSSL",
@@ -57,15 +57,6 @@
       "publisher": "OpenSSL",
       "purl": "pkg:generic/openssl-openssl@1.0.1",
       "cpe": "cpe:2.3:a:openssl:openssl:1.0.1:*:*:*:*:*:*:*"
-    },
-    {
-      "type": "operating-system",
-      "bom-ref": "pkg:generic/canonical-ubuntu-linux@20.04",
-      "name": "Ubuntu Linux",
-      "version": "20.04",
-      "publisher": "Canonical",
-      "purl": "pkg:generic/canonical-ubuntu-linux@20.04",
-      "cpe": "cpe:2.3:o:canonical:ubuntu_linux:20.04:*:*:*:*:*:*:*"
     }
   ]
 }

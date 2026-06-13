@@ -1,0 +1,80 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:9d9ea1ad-af89-4ce3-8c1e-96352947f635",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "device",
+      "bom-ref": "asset:bastion-admin-prod-01",
+      "name": "bastion-admin-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Internet-reachable administrative bastion with MFA"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internet"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "critical"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "high"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/canonical-ubuntu-linux@22.04",
+      "name": "Ubuntu Linux",
+      "version": "22.04",
+      "publisher": "Canonical",
+      "purl": "pkg:generic/canonical-ubuntu-linux@22.04",
+      "cpe": "cpe:2.3:o:canonical:ubuntu_linux:22.04:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/openbsd-openssh@8.4",
+      "name": "OpenSSH",
+      "version": "8.4",
+      "publisher": "OpenBSD",
+      "purl": "pkg:generic/openbsd-openssh@8.4",
+      "cpe": "cpe:2.3:a:openbsd:openssh:8.4:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/openvpn-openvpn@2.5.7",
+      "name": "OpenVPN",
+      "version": "2.5.7",
+      "publisher": "OpenVPN",
+      "purl": "pkg:generic/openvpn-openvpn@2.5.7",
+      "cpe": "cpe:2.3:a:openvpn:openvpn:2.5.7:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/hashicorp-terraform@1.3.0",
+      "name": "Terraform",
+      "version": "1.3.0",
+      "publisher": "HashiCorp",
+      "purl": "pkg:generic/hashicorp-terraform@1.3.0",
+      "cpe": "cpe:2.3:a:hashicorp:terraform:1.3.0:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/red-hat-ansible@2.9.27",
+      "name": "Ansible",
+      "version": "2.9.27",
+      "publisher": "Red Hat",
+      "purl": "pkg:generic/red-hat-ansible@2.9.27",
+      "cpe": "cpe:2.3:a:redhat:ansible:2.9.27:*:*:*:*:*:*:*"
+    }
+  ]
+}

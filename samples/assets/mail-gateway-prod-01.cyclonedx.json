@@ -1,0 +1,71 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:a71c4537-520b-49d4-805f-e9cbbbc4cf44",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:mail-gateway-prod-01",
+      "name": "mail-gateway-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Inbound mail security gateway"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internet"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "high"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "medium"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/canonical-ubuntu-linux@20.04",
+      "name": "Ubuntu Linux",
+      "version": "20.04",
+      "publisher": "Canonical",
+      "purl": "pkg:generic/canonical-ubuntu-linux@20.04",
+      "cpe": "cpe:2.3:o:canonical:ubuntu_linux:20.04:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/nginx-nginx@1.22.1",
+      "name": "nginx",
+      "version": "1.22.1",
+      "publisher": "nginx",
+      "purl": "pkg:generic/nginx-nginx@1.22.1",
+      "cpe": "cpe:2.3:a:nginx:nginx:1.22.1:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:generic/openssl-openssl@1.1.1",
+      "name": "OpenSSL",
+      "version": "1.1.1",
+      "publisher": "OpenSSL",
+      "purl": "pkg:generic/openssl-openssl@1.1.1",
+      "cpe": "cpe:2.3:a:openssl:openssl:1.1.1:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/python-software-foundation-python@3.9.13",
+      "name": "Python",
+      "version": "3.9.13",
+      "publisher": "Python Software Foundation",
+      "purl": "pkg:generic/python-software-foundation-python@3.9.13",
+      "cpe": "cpe:2.3:a:python:python:3.9.13:*:*:*:*:*:*:*"
+    }
+  ]
+}

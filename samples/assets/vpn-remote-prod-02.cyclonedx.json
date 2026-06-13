@@ -1,0 +1,53 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:6a665aba-3073-451b-82cc-b6a6f5d0dce1",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "device",
+      "bom-ref": "asset:vpn-remote-prod-02",
+      "name": "vpn-remote-prod-02",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Remote-access VPN concentrator for employees and contractors"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internet"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "critical"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "high"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/palo-alto-networks-pan-os@10.1.6",
+      "name": "PAN-OS",
+      "version": "10.1.6",
+      "publisher": "Palo Alto Networks",
+      "purl": "pkg:generic/palo-alto-networks-pan-os@10.1.6",
+      "cpe": "cpe:2.3:o:paloaltonetworks:pan-os:10.1.6:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:generic/openssl-openssl@1.1.1",
+      "name": "OpenSSL",
+      "version": "1.1.1",
+      "publisher": "OpenSSL",
+      "purl": "pkg:generic/openssl-openssl@1.1.1",
+      "cpe": "cpe:2.3:a:openssl:openssl:1.1.1:*:*:*:*:*:*:*"
+    }
+  ]
+}

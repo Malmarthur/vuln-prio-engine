@@ -27,14 +27,17 @@ export default function AssetsPanel() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedAssetIds, setExpandedAssetIds] = useState<string[]>([]);
 
-  const load = () => {
+  const load = (nextPage = page, options: { clearError?: boolean } = {}) => {
     setLoading(true);
-    setError(null);
-    Promise.all([fetchAssets({ page, per_page: 25, priority_level: priority }), fetchAssetStats()])
+    if (options.clearError ?? true) {
+      setError(null);
+    }
+    Promise.all([fetchAssets({ page: nextPage, per_page: 25, priority_level: priority }), fetchAssetStats()])
       .then(([assetPage, assetStats]) => {
         setAssets(assetPage.items);
         setTotal(assetPage.total);
@@ -50,21 +53,47 @@ export default function AssetsPanel() {
   }, [page, priority]);
 
   const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
+
     setImporting(true);
+    setImportProgress({ current: 0, total: files.length });
     setMsg(null);
     setError(null);
+
+    let importedAssets = 0;
+    let importedComponents = 0;
+    const failures: string[] = [];
+
     try {
-      const payload = JSON.parse(await file.text()) as Record<string, unknown>;
-      const res = await importCycloneDXAsset(payload);
-      setMsg(`Imported ${res.asset.name} with ${res.component_count.toLocaleString()} components`);
+      for (const [index, file] of files.entries()) {
+        setImportProgress({ current: index + 1, total: files.length });
+        try {
+          const payload = JSON.parse(await file.text()) as Record<string, unknown>;
+          const res = await importCycloneDXAsset(payload);
+          importedAssets += 1;
+          importedComponents += res.component_count;
+        } catch (e) {
+          failures.push(`${file.name}: ${getErrorMessage(e)}`);
+        }
+      }
+
+      if (importedAssets > 0) {
+        setMsg(
+          `Imported ${importedAssets.toLocaleString()} asset${importedAssets === 1 ? '' : 's'} with ${importedComponents.toLocaleString()} component${importedComponents === 1 ? '' : 's'}`
+        );
+      }
+      if (failures.length > 0) {
+        const visibleFailures = failures.slice(0, 4).join('\n');
+        const remaining = failures.length > 4 ? `\n...and ${failures.length - 4} more` : '';
+        setError(`Failed to import ${failures.length.toLocaleString()} file${failures.length === 1 ? '' : 's'}:\n${visibleFailures}${remaining}`);
+      }
+
       setPage(1);
-      load();
-    } catch (e) {
-      setError(getErrorMessage(e));
+      load(1, { clearError: false });
     } finally {
       setImporting(false);
+      setImportProgress(null);
       event.target.value = '';
     }
   };
@@ -111,14 +140,14 @@ export default function AssetsPanel() {
             {['A0', 'A1', 'A2', 'A3'].map((level) => <option key={level} value={level}>{level}</option>)}
           </select>
           <label className="inline-flex items-center justify-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 cursor-pointer">
-            {importing ? 'Importing...' : 'Import CycloneDX JSON'}
-            <input type="file" accept="application/json,.json" className="hidden" onChange={handleFile} disabled={importing} />
+            {importing && importProgress ? `Importing ${importProgress.current}/${importProgress.total}...` : 'Import CycloneDX JSON'}
+            <input type="file" accept="application/json,.json" className="hidden" onChange={handleFile} disabled={importing} multiple />
           </label>
         </div>
       </div>
 
       {msg && <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">{msg}</div>}
-      {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
+      {error && <div className="whitespace-pre-line p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
         <table className="w-full text-left">

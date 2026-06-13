@@ -1,0 +1,53 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:43de2567-6d5e-4195-801d-d3fcdb390408",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "device",
+      "bom-ref": "asset:warehouse-scanner-mdm-01",
+      "name": "warehouse-scanner-mdm-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "MDM-managed Android scanners for warehouse operations"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "medium"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "medium"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/google-android@12",
+      "name": "Android",
+      "version": "12",
+      "publisher": "Google",
+      "purl": "pkg:generic/google-android@12",
+      "cpe": "cpe:2.3:o:google:android:12:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/google-google-chrome@120.0.6099.109",
+      "name": "Google Chrome",
+      "version": "120.0.6099.109",
+      "publisher": "Google",
+      "purl": "pkg:generic/google-google-chrome@120.0.6099.109",
+      "cpe": "cpe:2.3:a:google:chrome:120.0.6099.109:*:*:*:*:*:*:*"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:93cb2b70-c3c2-422b-8c98-41f576f9057e",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "device",
+      "bom-ref": "asset:fileserver-corp-01",
+      "name": "fileserver-corp-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Corporate file server for shared departments"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "high"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "medium"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/microsoft-microsoft-windows-server-2019@1809",
+      "name": "Microsoft Windows Server 2019",
+      "version": "1809",
+      "publisher": "Microsoft",
+      "purl": "pkg:generic/microsoft-microsoft-windows-server-2019@1809",
+      "cpe": "cpe:2.3:o:microsoft:windows_server_2019:1809:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/samba-samba@4.15.5",
+      "name": "Samba",
+      "version": "4.15.5",
+      "publisher": "Samba",
+      "purl": "pkg:generic/samba-samba@4.15.5",
+      "cpe": "cpe:2.3:a:samba:samba:4.15.5:*:*:*:*:*:*:*"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:cae187b6-fcc8-452c-8c89-c703e8b284f0",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:sharepoint-intranet-prod-01",
+      "name": "sharepoint-intranet-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "SharePoint intranet and document collaboration"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "high"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "high"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/microsoft-microsoft-windows-server-2019@1809",
+      "name": "Microsoft Windows Server 2019",
+      "version": "1809",
+      "publisher": "Microsoft",
+      "purl": "pkg:generic/microsoft-microsoft-windows-server-2019@1809",
+      "cpe": "cpe:2.3:o:microsoft:windows_server_2019:1809:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/microsoft-microsoft-sharepoint-server@2019",
+      "name": "Microsoft SharePoint Server",
+      "version": "2019",
+      "publisher": "Microsoft",
+      "purl": "pkg:generic/microsoft-microsoft-sharepoint-server@2019",
+      "cpe": "cpe:2.3:a:microsoft:sharepoint_server:2019:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/microsoft-microsoft-sql-server@2019",
+      "name": "Microsoft SQL Server",
+      "version": "2019",
+      "publisher": "Microsoft",
+      "purl": "pkg:generic/microsoft-microsoft-sql-server@2019",
+      "cpe": "cpe:2.3:a:microsoft:sql_server:2019:*:*:*:*:*:*:*"
+    }
+  ]
+}

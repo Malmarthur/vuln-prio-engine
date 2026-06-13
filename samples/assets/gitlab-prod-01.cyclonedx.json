@@ -1,0 +1,89 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:c3959501-824b-4eb1-81b9-e57c65e10b14",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:gitlab-prod-01",
+      "name": "gitlab-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Source code management and merge request platform"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "critical"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "high"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/canonical-ubuntu-linux@22.04",
+      "name": "Ubuntu Linux",
+      "version": "22.04",
+      "publisher": "Canonical",
+      "purl": "pkg:generic/canonical-ubuntu-linux@22.04",
+      "cpe": "cpe:2.3:o:canonical:ubuntu_linux:22.04:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/gitlab-gitlab@15.1.0",
+      "name": "GitLab",
+      "version": "15.1.0",
+      "publisher": "GitLab",
+      "purl": "pkg:generic/gitlab-gitlab@15.1.0",
+      "cpe": "cpe:2.3:a:gitlab:gitlab:15.1.0:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/postgresql-postgresql@14.5",
+      "name": "PostgreSQL",
+      "version": "14.5",
+      "publisher": "PostgreSQL",
+      "purl": "pkg:generic/postgresql-postgresql@14.5",
+      "cpe": "cpe:2.3:a:postgresql:postgresql:14.5:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/redis-redis@6.2.7",
+      "name": "Redis",
+      "version": "6.2.7",
+      "publisher": "Redis",
+      "purl": "pkg:generic/redis-redis@6.2.7",
+      "cpe": "cpe:2.3:a:redis:redis:6.2.7:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/nginx-nginx@1.22.1",
+      "name": "nginx",
+      "version": "1.22.1",
+      "publisher": "nginx",
+      "purl": "pkg:generic/nginx-nginx@1.22.1",
+      "cpe": "cpe:2.3:a:nginx:nginx:1.22.1:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/git-project-git@2.40.0",
+      "name": "Git",
+      "version": "2.40.0",
+      "publisher": "Git Project",
+      "purl": "pkg:generic/git-project-git@2.40.0",
+      "cpe": "cpe:2.3:a:git-scm:git:2.40.0:*:*:*:*:*:*:*"
+    }
+  ]
+}

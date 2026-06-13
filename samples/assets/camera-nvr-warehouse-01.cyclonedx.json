@@ -2,26 +2,26 @@
   "bomFormat": "CycloneDX",
   "specVersion": "1.6",
   "version": 1,
-  "serialNumber": "urn:uuid:d6d82125-7f7c-44d6-8499-681dae60b88f",
+  "serialNumber": "urn:uuid:326ef0ac-91f2-4ca5-8129-3b733cb565ee",
   "metadata": {
     "timestamp": "2026-05-23T09:00:00Z",
     "component": {
       "type": "device",
-      "bom-ref": "asset:legacy-vpn-dmz-01",
-      "name": "legacy-vpn-dmz-01",
+      "bom-ref": "asset:camera-nvr-warehouse-01",
+      "name": "camera-nvr-warehouse-01",
       "version": "2026.05",
       "properties": [
         {
           "name": "vulnprio:scenario",
-          "value": "Exposed legacy VPN / edge appliance"
+          "value": "Warehouse network video recorder on a segmented network"
         },
         {
           "name": "vulnprio:internet_exposure",
-          "value": "internet"
+          "value": "isolated"
         },
         {
           "name": "vulnprio:business_criticality",
-          "value": "critical"
+          "value": "medium"
         },
         {
           "name": "vulnprio:patch_complexity",
@@ -42,12 +42,12 @@
     },
     {
       "type": "application",
-      "bom-ref": "pkg:generic/openvpn-openvpn@2.5.7",
-      "name": "OpenVPN",
-      "version": "2.5.7",
-      "publisher": "OpenVPN",
-      "purl": "pkg:generic/openvpn-openvpn@2.5.7",
-      "cpe": "cpe:2.3:a:openvpn:openvpn:2.5.7:*:*:*:*:*:*:*"
+      "bom-ref": "pkg:generic/nginx-nginx@1.14.0",
+      "name": "nginx",
+      "version": "1.14.0",
+      "publisher": "nginx",
+      "purl": "pkg:generic/nginx-nginx@1.14.0",
+      "cpe": "cpe:2.3:a:nginx:nginx:1.14.0:*:*:*:*:*:*:*"
     },
     {
       "type": "library",
@@ -57,15 +57,6 @@
       "publisher": "OpenSSL",
       "purl": "pkg:generic/openssl-openssl@1.0.1",
       "cpe": "cpe:2.3:a:openssl:openssl:1.0.1:*:*:*:*:*:*:*"
-    },
-    {
-      "type": "application",
-      "bom-ref": "pkg:generic/openbsd-openssh@8.2",
-      "name": "OpenSSH",
-      "version": "8.2",
-      "publisher": "OpenBSD",
-      "purl": "pkg:generic/openbsd-openssh@8.2",
-      "cpe": "cpe:2.3:a:openbsd:openssh:8.2:*:*:*:*:*:*:*"
     }
   ]
 }

@@ -1,0 +1,80 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:c001fd06-5c19-4d79-8507-1d49bacf892b",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:api-gateway-prod-01",
+      "name": "api-gateway-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Public API gateway for customer and partner integrations"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internet"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "critical"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "high"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/canonical-ubuntu-linux@22.04",
+      "name": "Ubuntu Linux",
+      "version": "22.04",
+      "publisher": "Canonical",
+      "purl": "pkg:generic/canonical-ubuntu-linux@22.04",
+      "cpe": "cpe:2.3:o:canonical:ubuntu_linux:22.04:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/nginx-nginx@1.22.1",
+      "name": "nginx",
+      "version": "1.22.1",
+      "publisher": "nginx",
+      "purl": "pkg:generic/nginx-nginx@1.22.1",
+      "cpe": "cpe:2.3:a:nginx:nginx:1.22.1:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/openjs-foundation-node-js@16.17.0",
+      "name": "Node.js",
+      "version": "16.17.0",
+      "publisher": "OpenJS Foundation",
+      "purl": "pkg:generic/openjs-foundation-node-js@16.17.0",
+      "cpe": "cpe:2.3:a:nodejs:node.js:16.17.0:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:generic/openssl-openssl@1.1.1",
+      "name": "OpenSSL",
+      "version": "1.1.1",
+      "publisher": "OpenSSL",
+      "purl": "pkg:generic/openssl-openssl@1.1.1",
+      "cpe": "cpe:2.3:a:openssl:openssl:1.1.1:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/redis-redis@6.2.7",
+      "name": "Redis",
+      "version": "6.2.7",
+      "publisher": "Redis",
+      "purl": "pkg:generic/redis-redis@6.2.7",
+      "cpe": "cpe:2.3:a:redis:redis:6.2.7:*:*:*:*:*:*:*"
+    }
+  ]
+}

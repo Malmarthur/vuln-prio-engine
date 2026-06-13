@@ -1,0 +1,71 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:93ed6c9e-867c-424f-8a52-778f75887397",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:registry-container-prod-01",
+      "name": "registry-container-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Private container image registry"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "high"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "medium"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/canonical-ubuntu-linux@22.04",
+      "name": "Ubuntu Linux",
+      "version": "22.04",
+      "publisher": "Canonical",
+      "purl": "pkg:generic/canonical-ubuntu-linux@22.04",
+      "cpe": "cpe:2.3:o:canonical:ubuntu_linux:22.04:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/docker-docker-engine@20.10.17",
+      "name": "Docker Engine",
+      "version": "20.10.17",
+      "publisher": "Docker",
+      "purl": "pkg:generic/docker-docker-engine@20.10.17",
+      "cpe": "cpe:2.3:a:docker:docker:20.10.17:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/nginx-nginx@1.22.1",
+      "name": "nginx",
+      "version": "1.22.1",
+      "publisher": "nginx",
+      "purl": "pkg:generic/nginx-nginx@1.22.1",
+      "cpe": "cpe:2.3:a:nginx:nginx:1.22.1:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:generic/openssl-openssl@1.1.1",
+      "name": "OpenSSL",
+      "version": "1.1.1",
+      "publisher": "OpenSSL",
+      "purl": "pkg:generic/openssl-openssl@1.1.1",
+      "cpe": "cpe:2.3:a:openssl:openssl:1.1.1:*:*:*:*:*:*:*"
+    }
+  ]
+}

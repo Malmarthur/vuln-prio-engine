@@ -1,0 +1,53 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:42aa680a-ac9a-475d-826c-0a5f78d5779b",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "device",
+      "bom-ref": "asset:print-server-hq-01",
+      "name": "print-server-hq-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Headquarters print server"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "low"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "medium"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/microsoft-microsoft-windows-server-2016@1607",
+      "name": "Microsoft Windows Server 2016",
+      "version": "1607",
+      "publisher": "Microsoft",
+      "purl": "pkg:generic/microsoft-microsoft-windows-server-2016@1607",
+      "cpe": "cpe:2.3:o:microsoft:windows_server_2016:1607:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/openprinting-cups@2.4.2",
+      "name": "CUPS",
+      "version": "2.4.2",
+      "publisher": "OpenPrinting",
+      "purl": "pkg:generic/openprinting-cups@2.4.2",
+      "cpe": "cpe:2.3:a:cups:cups:2.4.2:*:*:*:*:*:*:*"
+    }
+  ]
+}

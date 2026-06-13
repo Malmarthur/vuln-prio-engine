@@ -1,0 +1,53 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:a442a686-2281-4fda-86d2-b23094de2fb5",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:exchange-mailbox-prod-01",
+      "name": "exchange-mailbox-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Internal Exchange mailbox server"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "critical"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "high"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/microsoft-microsoft-windows-server-2019@1809",
+      "name": "Microsoft Windows Server 2019",
+      "version": "1809",
+      "publisher": "Microsoft",
+      "purl": "pkg:generic/microsoft-microsoft-windows-server-2019@1809",
+      "cpe": "cpe:2.3:o:microsoft:windows_server_2019:1809:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/microsoft-microsoft-exchange-server@2019",
+      "name": "Microsoft Exchange Server",
+      "version": "2019",
+      "publisher": "Microsoft",
+      "purl": "pkg:generic/microsoft-microsoft-exchange-server@2019",
+      "cpe": "cpe:2.3:a:microsoft:exchange_server:2019:*:*:*:*:*:*:*"
+    }
+  ]
+}

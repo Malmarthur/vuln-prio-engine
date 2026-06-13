@@ -1,0 +1,71 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:6daa188a-0514-4ee5-845c-644a9ef70c2c",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:grafana-monitoring-prod-01",
+      "name": "grafana-monitoring-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Operational monitoring dashboards"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "medium"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "low"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/canonical-ubuntu-linux@22.04",
+      "name": "Ubuntu Linux",
+      "version": "22.04",
+      "publisher": "Canonical",
+      "purl": "pkg:generic/canonical-ubuntu-linux@22.04",
+      "cpe": "cpe:2.3:o:canonical:ubuntu_linux:22.04:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/grafana-labs-grafana@8.5.9",
+      "name": "Grafana",
+      "version": "8.5.9",
+      "publisher": "Grafana Labs",
+      "purl": "pkg:generic/grafana-labs-grafana@8.5.9",
+      "cpe": "cpe:2.3:a:grafana:grafana:8.5.9:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/prometheus-prometheus@2.40.0",
+      "name": "Prometheus",
+      "version": "2.40.0",
+      "publisher": "Prometheus",
+      "purl": "pkg:generic/prometheus-prometheus@2.40.0",
+      "cpe": "cpe:2.3:a:prometheus:prometheus:2.40.0:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/nginx-nginx@1.22.1",
+      "name": "nginx",
+      "version": "1.22.1",
+      "publisher": "nginx",
+      "purl": "pkg:generic/nginx-nginx@1.22.1",
+      "cpe": "cpe:2.3:a:nginx:nginx:1.22.1:*:*:*:*:*:*:*"
+    }
+  ]
+}

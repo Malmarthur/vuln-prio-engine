@@ -1,0 +1,80 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:935aaf5d-6525-45c2-801c-5739577eb497",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:jira-prod-01",
+      "name": "jira-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Engineering project tracking"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "high"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "medium"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/canonical-ubuntu-linux@20.04",
+      "name": "Ubuntu Linux",
+      "version": "20.04",
+      "publisher": "Canonical",
+      "purl": "pkg:generic/canonical-ubuntu-linux@20.04",
+      "cpe": "cpe:2.3:o:canonical:ubuntu_linux:20.04:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/atlassian-jira@8.20.10",
+      "name": "Jira",
+      "version": "8.20.10",
+      "publisher": "Atlassian",
+      "purl": "pkg:generic/atlassian-jira@8.20.10",
+      "cpe": "cpe:2.3:a:atlassian:jira:8.20.10:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/oracle-oracle-java-se@11.0.16",
+      "name": "Oracle Java SE",
+      "version": "11.0.16",
+      "publisher": "Oracle",
+      "purl": "pkg:generic/oracle-oracle-java-se@11.0.16",
+      "cpe": "cpe:2.3:a:oracle:jdk:11.0.16:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/postgresql-postgresql@13.7",
+      "name": "PostgreSQL",
+      "version": "13.7",
+      "publisher": "PostgreSQL",
+      "purl": "pkg:generic/postgresql-postgresql@13.7",
+      "cpe": "cpe:2.3:a:postgresql:postgresql:13.7:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/nginx-nginx@1.22.1",
+      "name": "nginx",
+      "version": "1.22.1",
+      "publisher": "nginx",
+      "purl": "pkg:generic/nginx-nginx@1.22.1",
+      "cpe": "cpe:2.3:a:nginx:nginx:1.22.1:*:*:*:*:*:*:*"
+    }
+  ]
+}

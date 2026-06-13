@@ -1,0 +1,62 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:1e1403e5-07d6-415a-84ed-dcb520642331",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:rabbitmq-prod-01",
+      "name": "rabbitmq-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Message broker for asynchronous order processing"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "high"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "medium"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/debian-debian-linux@11",
+      "name": "Debian Linux",
+      "version": "11",
+      "publisher": "Debian",
+      "purl": "pkg:generic/debian-debian-linux@11",
+      "cpe": "cpe:2.3:o:debian:debian_linux:11:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/vmware-rabbitmq@3.8.30",
+      "name": "RabbitMQ",
+      "version": "3.8.30",
+      "publisher": "VMware",
+      "purl": "pkg:generic/vmware-rabbitmq@3.8.30",
+      "cpe": "cpe:2.3:a:vmware:rabbitmq:3.8.30:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:generic/openssl-openssl@1.1.1",
+      "name": "OpenSSL",
+      "version": "1.1.1",
+      "publisher": "OpenSSL",
+      "purl": "pkg:generic/openssl-openssl@1.1.1",
+      "cpe": "cpe:2.3:a:openssl:openssl:1.1.1:*:*:*:*:*:*:*"
+    }
+  ]
+}

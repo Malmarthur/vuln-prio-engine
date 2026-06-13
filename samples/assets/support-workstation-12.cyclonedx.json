@@ -1,0 +1,107 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:1fbcef43-de3c-4a4f-84b1-21578fcef4bc",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "device",
+      "bom-ref": "asset:support-workstation-12",
+      "name": "support-workstation-12",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Support workstation with admin tools and remote troubleshooting clients"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internet"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "high"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "medium"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/microsoft-microsoft-windows-10@22H2",
+      "name": "Microsoft Windows 10",
+      "version": "22H2",
+      "publisher": "Microsoft",
+      "purl": "pkg:generic/microsoft-microsoft-windows-10@22H2",
+      "cpe": "cpe:2.3:o:microsoft:windows_10:22H2:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/google-google-chrome@120.0.6099.109",
+      "name": "Google Chrome",
+      "version": "120.0.6099.109",
+      "publisher": "Google",
+      "purl": "pkg:generic/google-google-chrome@120.0.6099.109",
+      "cpe": "cpe:2.3:a:google:chrome:120.0.6099.109:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/microsoft-microsoft-edge@120.0.2210.61",
+      "name": "Microsoft Edge",
+      "version": "120.0.2210.61",
+      "publisher": "Microsoft",
+      "purl": "pkg:generic/microsoft-microsoft-edge@120.0.2210.61",
+      "cpe": "cpe:2.3:a:microsoft:edge:120.0.2210.61:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/microsoft-microsoft-office@2019",
+      "name": "Microsoft Office",
+      "version": "2019",
+      "publisher": "Microsoft",
+      "purl": "pkg:generic/microsoft-microsoft-office@2019",
+      "cpe": "cpe:2.3:a:microsoft:office:2019:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/microsoft-microsoft-teams@1.6.00",
+      "name": "Microsoft Teams",
+      "version": "1.6.00",
+      "publisher": "Microsoft",
+      "purl": "pkg:generic/microsoft-microsoft-teams@1.6.00",
+      "cpe": "cpe:2.3:a:microsoft:teams:1.6.00:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/putty-putty@0.76",
+      "name": "PuTTY",
+      "version": "0.76",
+      "publisher": "PuTTY",
+      "purl": "pkg:generic/putty-putty@0.76",
+      "cpe": "cpe:2.3:a:putty:putty:0.76:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/filezilla-filezilla-client@3.60.1",
+      "name": "FileZilla Client",
+      "version": "3.60.1",
+      "publisher": "FileZilla",
+      "purl": "pkg:generic/filezilla-filezilla-client@3.60.1",
+      "cpe": "cpe:2.3:a:filezilla-project:filezilla_client:3.60.1:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/wireshark-wireshark@3.6.8",
+      "name": "Wireshark",
+      "version": "3.6.8",
+      "publisher": "Wireshark",
+      "purl": "pkg:generic/wireshark-wireshark@3.6.8",
+      "cpe": "cpe:2.3:a:wireshark:wireshark:3.6.8:*:*:*:*:*:*:*"
+    }
+  ]
+}

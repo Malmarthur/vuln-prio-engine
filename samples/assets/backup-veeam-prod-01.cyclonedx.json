@@ -1,0 +1,53 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:50cbf594-a80a-4926-8080-30f59233d616",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:backup-veeam-prod-01",
+      "name": "backup-veeam-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Central backup and recovery server"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "critical"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "high"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/microsoft-microsoft-windows-server-2019@1809",
+      "name": "Microsoft Windows Server 2019",
+      "version": "1809",
+      "publisher": "Microsoft",
+      "purl": "pkg:generic/microsoft-microsoft-windows-server-2019@1809",
+      "cpe": "cpe:2.3:o:microsoft:windows_server_2019:1809:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/veeam-veeam-backup-replication@11.0",
+      "name": "Veeam Backup & Replication",
+      "version": "11.0",
+      "publisher": "Veeam",
+      "purl": "pkg:generic/veeam-veeam-backup-replication@11.0",
+      "cpe": "cpe:2.3:a:veeam:backup_&_replication:11.0:*:*:*:*:*:*:*"
+    }
+  ]
+}

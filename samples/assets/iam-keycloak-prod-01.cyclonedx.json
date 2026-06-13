@@ -1,0 +1,80 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:12053608-a6ca-4ddd-835d-0edd23a533f4",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:iam-keycloak-prod-01",
+      "name": "iam-keycloak-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Central identity provider for internal and customer applications"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "critical"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "high"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/red-hat-red-hat-enterprise-linux@8",
+      "name": "Red Hat Enterprise Linux",
+      "version": "8",
+      "publisher": "Red Hat",
+      "purl": "pkg:generic/red-hat-red-hat-enterprise-linux@8",
+      "cpe": "cpe:2.3:o:redhat:enterprise_linux:8:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/red-hat-keycloak@19.0.1",
+      "name": "Keycloak",
+      "version": "19.0.1",
+      "publisher": "Red Hat",
+      "purl": "pkg:generic/red-hat-keycloak@19.0.1",
+      "cpe": "cpe:2.3:a:redhat:keycloak:19.0.1:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/oracle-oracle-java-se@11.0.16",
+      "name": "Oracle Java SE",
+      "version": "11.0.16",
+      "publisher": "Oracle",
+      "purl": "pkg:generic/oracle-oracle-java-se@11.0.16",
+      "cpe": "cpe:2.3:a:oracle:jdk:11.0.16:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/postgresql-postgresql@14.5",
+      "name": "PostgreSQL",
+      "version": "14.5",
+      "publisher": "PostgreSQL",
+      "purl": "pkg:generic/postgresql-postgresql@14.5",
+      "cpe": "cpe:2.3:a:postgresql:postgresql:14.5:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/nginx-nginx@1.22.1",
+      "name": "nginx",
+      "version": "1.22.1",
+      "publisher": "nginx",
+      "purl": "pkg:generic/nginx-nginx@1.22.1",
+      "cpe": "cpe:2.3:a:nginx:nginx:1.22.1:*:*:*:*:*:*:*"
+    }
+  ]
+}

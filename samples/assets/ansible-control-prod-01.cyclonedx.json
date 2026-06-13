@@ -1,0 +1,80 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:41ac7a89-aa9a-4aac-8b3f-c8a8355bb8f4",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:ansible-control-prod-01",
+      "name": "ansible-control-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Configuration management control node"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "high"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "medium"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/red-hat-red-hat-enterprise-linux@9",
+      "name": "Red Hat Enterprise Linux",
+      "version": "9",
+      "publisher": "Red Hat",
+      "purl": "pkg:generic/red-hat-red-hat-enterprise-linux@9",
+      "cpe": "cpe:2.3:o:redhat:enterprise_linux:9:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/red-hat-ansible@2.9.27",
+      "name": "Ansible",
+      "version": "2.9.27",
+      "publisher": "Red Hat",
+      "purl": "pkg:generic/red-hat-ansible@2.9.27",
+      "cpe": "cpe:2.3:a:redhat:ansible:2.9.27:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/python-software-foundation-python@3.9.13",
+      "name": "Python",
+      "version": "3.9.13",
+      "publisher": "Python Software Foundation",
+      "purl": "pkg:generic/python-software-foundation-python@3.9.13",
+      "cpe": "cpe:2.3:a:python:python:3.9.13:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/git-project-git@2.40.0",
+      "name": "Git",
+      "version": "2.40.0",
+      "publisher": "Git Project",
+      "purl": "pkg:generic/git-project-git@2.40.0",
+      "cpe": "cpe:2.3:a:git-scm:git:2.40.0:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/openbsd-openssh@8.4",
+      "name": "OpenSSH",
+      "version": "8.4",
+      "publisher": "OpenBSD",
+      "purl": "pkg:generic/openbsd-openssh@8.4",
+      "cpe": "cpe:2.3:a:openbsd:openssh:8.4:*:*:*:*:*:*:*"
+    }
+  ]
+}

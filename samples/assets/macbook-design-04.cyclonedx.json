@@ -1,0 +1,98 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:3e9a5747-5aa0-441c-8fd4-793d8bf6893b",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "device",
+      "bom-ref": "asset:macbook-design-04",
+      "name": "macbook-design-04",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Design team MacBook with browser, collaboration, and office tooling"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internet"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "medium"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "low"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/apple-macos@13.6",
+      "name": "macOS",
+      "version": "13.6",
+      "publisher": "Apple",
+      "purl": "pkg:generic/apple-macos@13.6",
+      "cpe": "cpe:2.3:o:apple:macos:13.6:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/google-google-chrome@120.0.6099.109",
+      "name": "Google Chrome",
+      "version": "120.0.6099.109",
+      "publisher": "Google",
+      "purl": "pkg:generic/google-google-chrome@120.0.6099.109",
+      "cpe": "cpe:2.3:a:google:chrome:120.0.6099.109:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/mozilla-mozilla-firefox@102.0",
+      "name": "Mozilla Firefox",
+      "version": "102.0",
+      "publisher": "Mozilla",
+      "purl": "pkg:generic/mozilla-mozilla-firefox@102.0",
+      "cpe": "cpe:2.3:a:mozilla:firefox:102.0:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/microsoft-microsoft-office@2019",
+      "name": "Microsoft Office",
+      "version": "2019",
+      "publisher": "Microsoft",
+      "purl": "pkg:generic/microsoft-microsoft-office@2019",
+      "cpe": "cpe:2.3:a:microsoft:office:2019:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/microsoft-microsoft-teams@1.6.00",
+      "name": "Microsoft Teams",
+      "version": "1.6.00",
+      "publisher": "Microsoft",
+      "purl": "pkg:generic/microsoft-microsoft-teams@1.6.00",
+      "cpe": "cpe:2.3:a:microsoft:teams:1.6.00:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/zoom-zoom-client@5.12.2",
+      "name": "Zoom Client",
+      "version": "5.12.2",
+      "publisher": "Zoom",
+      "purl": "pkg:generic/zoom-zoom-client@5.12.2",
+      "cpe": "cpe:2.3:a:zoom:zoom:5.12.2:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/adobe-adobe-acrobat-reader-dc@22.003.20258",
+      "name": "Adobe Acrobat Reader DC",
+      "version": "22.003.20258",
+      "publisher": "Adobe",
+      "purl": "pkg:generic/adobe-adobe-acrobat-reader-dc@22.003.20258",
+      "cpe": "cpe:2.3:a:adobe:acrobat_reader_dc:22.003.20258:*:*:*:*:*:*:*"
+    }
+  ]
+}

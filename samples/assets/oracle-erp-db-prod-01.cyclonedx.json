@@ -2,18 +2,18 @@
   "bomFormat": "CycloneDX",
   "specVersion": "1.6",
   "version": 1,
-  "serialNumber": "urn:uuid:b5e77fda-8cdc-439e-8b9f-68393d03f653",
+  "serialNumber": "urn:uuid:13c32de5-f291-4a11-8219-e265523f8658",
   "metadata": {
     "timestamp": "2026-05-23T09:00:00Z",
     "component": {
-      "type": "application",
-      "bom-ref": "asset:erp-app-prod-01",
-      "name": "erp-app-prod-01",
+      "type": "database",
+      "bom-ref": "asset:oracle-erp-db-prod-01",
+      "name": "oracle-erp-db-prod-01",
       "version": "2026.05",
       "properties": [
         {
           "name": "vulnprio:scenario",
-          "value": "Internal critical Java ERP stack"
+          "value": "Oracle database backing ERP workloads"
         },
         {
           "name": "vulnprio:internet_exposure",
@@ -39,24 +39,6 @@
       "publisher": "Red Hat",
       "purl": "pkg:generic/red-hat-red-hat-enterprise-linux@8",
       "cpe": "cpe:2.3:o:redhat:enterprise_linux:8:*:*:*:*:*:*:*"
-    },
-    {
-      "type": "application",
-      "bom-ref": "pkg:generic/apache-software-foundation-apache-tomcat@8.5.81",
-      "name": "Apache Tomcat",
-      "version": "8.5.81",
-      "publisher": "Apache Software Foundation",
-      "purl": "pkg:generic/apache-software-foundation-apache-tomcat@8.5.81",
-      "cpe": "cpe:2.3:a:apache:tomcat:8.5.81:*:*:*:*:*:*:*"
-    },
-    {
-      "type": "application",
-      "bom-ref": "pkg:generic/oracle-oracle-java-se@8u202",
-      "name": "Oracle Java SE",
-      "version": "8u202",
-      "publisher": "Oracle",
-      "purl": "pkg:generic/oracle-oracle-java-se@8u202",
-      "cpe": "cpe:2.3:a:oracle:jre:8u202:*:*:*:*:*:*:*"
     },
     {
       "type": "application",

@@ -1,0 +1,89 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:92222683-a7b8-4065-817a-6e1a0be19a1b",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:jenkins-ci-prod-01",
+      "name": "jenkins-ci-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Build automation for production releases"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "critical"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "high"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/canonical-ubuntu-linux@22.04",
+      "name": "Ubuntu Linux",
+      "version": "22.04",
+      "publisher": "Canonical",
+      "purl": "pkg:generic/canonical-ubuntu-linux@22.04",
+      "cpe": "cpe:2.3:o:canonical:ubuntu_linux:22.04:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/jenkins-jenkins@2.249.1",
+      "name": "Jenkins",
+      "version": "2.249.1",
+      "publisher": "Jenkins",
+      "purl": "pkg:generic/jenkins-jenkins@2.249.1",
+      "cpe": "cpe:2.3:a:jenkins:jenkins:2.249.1:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/oracle-oracle-java-se@11.0.16",
+      "name": "Oracle Java SE",
+      "version": "11.0.16",
+      "publisher": "Oracle",
+      "purl": "pkg:generic/oracle-oracle-java-se@11.0.16",
+      "cpe": "cpe:2.3:a:oracle:jdk:11.0.16:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/docker-docker-engine@20.10.17",
+      "name": "Docker Engine",
+      "version": "20.10.17",
+      "publisher": "Docker",
+      "purl": "pkg:generic/docker-docker-engine@20.10.17",
+      "cpe": "cpe:2.3:a:docker:docker:20.10.17:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/git-project-git@2.40.0",
+      "name": "Git",
+      "version": "2.40.0",
+      "publisher": "Git Project",
+      "purl": "pkg:generic/git-project-git@2.40.0",
+      "cpe": "cpe:2.3:a:git-scm:git:2.40.0:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/openjs-foundation-node-js@16.17.0",
+      "name": "Node.js",
+      "version": "16.17.0",
+      "publisher": "OpenJS Foundation",
+      "purl": "pkg:generic/openjs-foundation-node-js@16.17.0",
+      "cpe": "cpe:2.3:a:nodejs:node.js:16.17.0:*:*:*:*:*:*:*"
+    }
+  ]
+}

@@ -2,18 +2,18 @@
   "bomFormat": "CycloneDX",
   "specVersion": "1.6",
   "version": 1,
-  "serialNumber": "urn:uuid:b5e77fda-8cdc-439e-8b9f-68393d03f653",
+  "serialNumber": "urn:uuid:a5e4892e-2266-4f9e-8bb6-25fd469c09a6",
   "metadata": {
     "timestamp": "2026-05-23T09:00:00Z",
     "component": {
       "type": "application",
-      "bom-ref": "asset:erp-app-prod-01",
-      "name": "erp-app-prod-01",
+      "bom-ref": "asset:splunk-siem-prod-01",
+      "name": "splunk-siem-prod-01",
       "version": "2026.05",
       "properties": [
         {
           "name": "vulnprio:scenario",
-          "value": "Internal critical Java ERP stack"
+          "value": "Security event management platform"
         },
         {
           "name": "vulnprio:internet_exposure",
@@ -42,30 +42,12 @@
     },
     {
       "type": "application",
-      "bom-ref": "pkg:generic/apache-software-foundation-apache-tomcat@8.5.81",
-      "name": "Apache Tomcat",
-      "version": "8.5.81",
-      "publisher": "Apache Software Foundation",
-      "purl": "pkg:generic/apache-software-foundation-apache-tomcat@8.5.81",
-      "cpe": "cpe:2.3:a:apache:tomcat:8.5.81:*:*:*:*:*:*:*"
-    },
-    {
-      "type": "application",
-      "bom-ref": "pkg:generic/oracle-oracle-java-se@8u202",
-      "name": "Oracle Java SE",
-      "version": "8u202",
-      "publisher": "Oracle",
-      "purl": "pkg:generic/oracle-oracle-java-se@8u202",
-      "cpe": "cpe:2.3:a:oracle:jre:8u202:*:*:*:*:*:*:*"
-    },
-    {
-      "type": "application",
-      "bom-ref": "pkg:generic/oracle-oracle-database-server@19c",
-      "name": "Oracle Database Server",
-      "version": "19c",
-      "publisher": "Oracle",
-      "purl": "pkg:generic/oracle-oracle-database-server@19c",
-      "cpe": "cpe:2.3:a:oracle:database_server:19c:*:*:*:*:*:*:*"
+      "bom-ref": "pkg:generic/splunk-splunk-enterprise@8.2.6",
+      "name": "Splunk Enterprise",
+      "version": "8.2.6",
+      "publisher": "Splunk",
+      "purl": "pkg:generic/splunk-splunk-enterprise@8.2.6",
+      "cpe": "cpe:2.3:a:splunk:splunk:8.2.6:*:*:*:*:*:*:*"
     },
     {
       "type": "library",

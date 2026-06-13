@@ -1,0 +1,62 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "serialNumber": "urn:uuid:c441f564-af87-4e8b-8326-072d19805a00",
+  "metadata": {
+    "timestamp": "2026-05-23T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "asset:kafka-prod-01",
+      "name": "kafka-prod-01",
+      "version": "2026.05",
+      "properties": [
+        {
+          "name": "vulnprio:scenario",
+          "value": "Event streaming platform for telemetry and integrations"
+        },
+        {
+          "name": "vulnprio:internet_exposure",
+          "value": "internal"
+        },
+        {
+          "name": "vulnprio:business_criticality",
+          "value": "high"
+        },
+        {
+          "name": "vulnprio:patch_complexity",
+          "value": "medium"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "operating-system",
+      "bom-ref": "pkg:generic/red-hat-red-hat-enterprise-linux@8",
+      "name": "Red Hat Enterprise Linux",
+      "version": "8",
+      "publisher": "Red Hat",
+      "purl": "pkg:generic/red-hat-red-hat-enterprise-linux@8",
+      "cpe": "cpe:2.3:o:redhat:enterprise_linux:8:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/apache-software-foundation-apache-kafka@3.1.0",
+      "name": "Apache Kafka",
+      "version": "3.1.0",
+      "publisher": "Apache Software Foundation",
+      "purl": "pkg:generic/apache-software-foundation-apache-kafka@3.1.0",
+      "cpe": "cpe:2.3:a:apache:kafka:3.1.0:*:*:*:*:*:*:*"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/oracle-oracle-java-se@11.0.16",
+      "name": "Oracle Java SE",
+      "version": "11.0.16",
+      "publisher": "Oracle",
+      "purl": "pkg:generic/oracle-oracle-java-se@11.0.16",
+      "cpe": "cpe:2.3:a:oracle:jdk:11.0.16:*:*:*:*:*:*:*"
+    }
+  ]
+}
