@@ -18,7 +18,7 @@ export default function Layout({ activeTab, onTabChange, children }: LayoutProps
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[96rem] px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <h1 className="text-xl font-bold text-gray-900 tracking-tight">
               VulnPrio
@@ -41,7 +41,7 @@ export default function Layout({ activeTab, onTabChange, children }: LayoutProps
           </div>
         </div>
       </header>
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="mx-auto max-w-[96rem] px-4 py-6 sm:px-6 lg:px-8">
         {children}
       </main>
     </div>
