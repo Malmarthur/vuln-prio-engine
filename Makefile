@@ -2,7 +2,7 @@ TEST_DB_URL ?= postgresql+asyncpg://vulnprio:vulnprio_dev@db:5432/vulnprio_test
 
 # Start the full development stack
 dev:
-	docker compose up -d
+	docker compose up -d --build
 
 # Run all tests inside the backend container
 test:
