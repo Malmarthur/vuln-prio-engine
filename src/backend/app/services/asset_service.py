@@ -6,12 +6,11 @@ from uuid import UUID
 
 from sqlalchemy import Float, and_, bindparam, delete, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import contains_eager, selectinload
 
 from app.models.asset import Asset, AssetComponent, AssetScore
 from app.schemas.asset import AssetScoringProfile
 from app.services.cpe import cpe_fields
-from app.services.vulnerability_service import get_setting, set_setting
 
 logger = logging.getLogger(__name__)
 
@@ -88,22 +87,25 @@ async def list_assets(
     business_criticality: str | None = None,
     patch_complexity: str | None = None,
     priority_level: str | None = None,
+    preset_id: UUID | None = None,
 ) -> tuple[list[Asset], int]:
+    from app.services.profile_service import resolve_context
+    profile_id = (await resolve_context(session, preset_id)).asset_profile_id
     filters = _asset_filters(search, internet_exposure, business_criticality, patch_complexity, priority_level)
     where_clause = and_(*filters) if filters else None
-    needs_score_join = priority_level is not None
+    needs_score_join = True
 
     count_stmt = select(func.count(Asset.id))
     if needs_score_join:
-        count_stmt = count_stmt.outerjoin(AssetScore)
+        count_stmt = count_stmt.outerjoin(AssetScore, and_(AssetScore.asset_id == Asset.id, AssetScore.asset_profile_id == profile_id))
     if where_clause is not None:
         count_stmt = count_stmt.where(where_clause)
     total = (await session.execute(count_stmt)).scalar_one()
 
     stmt = (
         select(Asset)
-        .options(selectinload(Asset.components), joinedload(Asset.score))
-        .outerjoin(AssetScore)
+        .options(selectinload(Asset.components), contains_eager(Asset.score))
+        .outerjoin(AssetScore, and_(AssetScore.asset_id == Asset.id, AssetScore.asset_profile_id == profile_id))
         .order_by(AssetScore.priority_score.desc().nulls_last(), Asset.updated_at.desc().nulls_last())
         .offset((page - 1) * per_page)
         .limit(per_page)
@@ -114,19 +116,24 @@ async def list_assets(
     return rows.scalars().unique().all(), total
 
 
-async def get_asset(session: AsyncSession, asset_id: UUID) -> Asset | None:
+async def get_asset(session: AsyncSession, asset_id: UUID, preset_id: UUID | None = None) -> Asset | None:
+    from app.services.profile_service import resolve_context
+    profile_id = (await resolve_context(session, preset_id)).asset_profile_id
     result = await session.execute(
         select(Asset)
-        .options(selectinload(Asset.components), joinedload(Asset.score))
+        .options(selectinload(Asset.components), contains_eager(Asset.score))
+        .outerjoin(AssetScore, and_(AssetScore.asset_id == Asset.id, AssetScore.asset_profile_id == profile_id))
         .where(Asset.id == asset_id)
     )
-    return result.scalar_one_or_none()
+    return result.scalars().unique().one_or_none()
 
 
-async def get_asset_stats(session: AsyncSession) -> dict[str, Any]:
+async def get_asset_stats(session: AsyncSession, preset_id: UUID | None = None) -> dict[str, Any]:
+    from app.services.profile_service import resolve_context
+    profile_id = (await resolve_context(session, preset_id)).asset_profile_id
     total = (await session.execute(select(func.count(Asset.id)))).scalar_one()
     scored = (
-        await session.execute(select(func.count(AssetScore.asset_id)).where(AssetScore.priority_score.is_not(None)))
+        await session.execute(select(func.count(AssetScore.asset_id)).where(AssetScore.asset_profile_id == profile_id, AssetScore.priority_score.is_not(None)))
     ).scalar_one()
     components = (await session.execute(select(func.count(AssetComponent.id)))).scalar_one()
     with_cpe = (
@@ -139,7 +146,7 @@ async def get_asset_stats(session: AsyncSession) -> dict[str, Any]:
         await session.execute(select(Asset.business_criticality, func.count(Asset.id)).group_by(Asset.business_criticality))
     ).all()
     priority_rows = (
-        await session.execute(select(AssetScore.priority_level, func.count(AssetScore.asset_id)).group_by(AssetScore.priority_level))
+        await session.execute(select(AssetScore.priority_level, func.count(AssetScore.asset_id)).where(AssetScore.asset_profile_id == profile_id).group_by(AssetScore.priority_level))
     ).all()
     return {
         "total_assets": total,
@@ -154,22 +161,43 @@ async def get_asset_stats(session: AsyncSession) -> dict[str, Any]:
 
 
 async def get_asset_scoring_profile(session: AsyncSession) -> AssetScoringProfile:
-    raw = await get_setting(session, "asset_scoring_profile") or DEFAULT_ASSET_SCORING_PROFILE
-    return AssetScoringProfile.model_validate(raw)
+    from app.services.profile_service import get_active_profile
+    return AssetScoringProfile.model_validate((await get_active_profile(session, "asset")).config)
 
 
 async def save_asset_scoring_profile(session: AsyncSession, profile: AssetScoringProfile) -> None:
-    await set_setting(session, "asset_scoring_profile", profile.model_dump())
+    from app.services.profile_service import save_active_profile_config
+    await save_active_profile_config(session, "asset", profile.model_dump())
 
 
-async def compute_asset_scores(session: AsyncSession) -> tuple[int, dict[str, int]]:
-    profile = (await get_asset_scoring_profile(session)).model_dump()
+async def compute_asset_scores(
+    session: AsyncSession,
+    scoring_profile: AssetScoringProfile | None = None,
+    profile_id: UUID | None = None,
+    profile_revision: int = 1,
+    scoring_run_id: UUID | None = None,
+) -> tuple[int, dict[str, int]]:
+    if scoring_profile is None or profile_id is None:
+        from app.models.scoring import ScoringProfile as NamedScoringProfile
+        from app.services.profile_service import get_active_preset
+        _, context = await get_active_preset(session)
+        profile_id = profile_id or context.asset_profile_id
+        if scoring_profile is None:
+            named = await session.get(NamedScoringProfile, profile_id)
+            scoring_profile = AssetScoringProfile.model_validate(named.config)
+            profile_revision = named.revision
+    profile = scoring_profile.model_dump()
     params = _asset_score_params(profile["weights"], profile["values"], profile["thresholds"])
+    params.update({"profile_id": profile_id, "profile_revision": profile_revision, "scoring_run_id": scoring_run_id})
     stmt = text(
         """
-        INSERT INTO asset_scores (asset_id, priority_score, priority_confidence, priority_level)
+        INSERT INTO asset_scores (
+            asset_id, asset_profile_id, priority_score, priority_confidence, priority_level,
+            profile_revision, scoring_run_id
+        )
         SELECT
             a.id,
+            :profile_id,
             ROUND((
                 CASE a.internet_exposure
                     WHEN 'internet' THEN :exposure_internet
@@ -261,20 +289,28 @@ async def compute_asset_scores(session: AsyncSession) -> tuple[int, dict[str, in
                     END * :patch_factor
                 ) >= :t_a2 THEN 'A2'
                 ELSE 'A3'
-            END
+            END,
+            :profile_revision,
+            :scoring_run_id
         FROM assets a
-        ON CONFLICT (asset_id) DO UPDATE SET
+        ON CONFLICT (asset_id, asset_profile_id) DO UPDATE SET
             priority_score = EXCLUDED.priority_score,
             priority_confidence = EXCLUDED.priority_confidence,
-            priority_level = EXCLUDED.priority_level
+            priority_level = EXCLUDED.priority_level,
+            profile_revision = EXCLUDED.profile_revision,
+            scoring_run_id = EXCLUDED.scoring_run_id
         """
-    ).bindparams(*[bindparam(name, type_=Float) for name in params])
+    ).bindparams(*[
+        bindparam(name, type_=Float)
+        for name in params
+        if name not in {"profile_id", "profile_revision", "scoring_run_id"}
+    ])
     await session.execute(stmt, params)
     await session.commit()
 
-    rows = (await session.execute(select(func.count(AssetScore.asset_id)))).scalar_one()
+    rows = (await session.execute(select(func.count(AssetScore.asset_id)).where(AssetScore.asset_profile_id == profile_id))).scalar_one()
     dist_rows = (
-        await session.execute(select(AssetScore.priority_level, func.count(AssetScore.asset_id)).group_by(AssetScore.priority_level))
+        await session.execute(select(AssetScore.priority_level, func.count(AssetScore.asset_id)).where(AssetScore.asset_profile_id == profile_id).group_by(AssetScore.priority_level))
     ).all()
     return rows, {row[0]: row[1] for row in dist_rows if row[0]}
 

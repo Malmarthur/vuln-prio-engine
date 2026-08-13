@@ -10,6 +10,8 @@ import {
   ScoreDistribution,
   ScoringProfile,
   VulnerabilityStats,
+  ScoringPreset,
+  activateScoringPreset,
   fetchAssetScoringProfile,
   fetchAssetStats,
   fetchColumnValues,
@@ -18,6 +20,7 @@ import {
   fetchFindingStats,
   fetchScoreDistribution,
   fetchScoringProfile,
+  fetchScoringPresets,
   fetchStats,
   resetFindingScoringProfile,
   resetAssetScoringProfile,
@@ -34,6 +37,7 @@ import AddMetricButton from './scoring/AddMetricButton';
 import MetricCard from './scoring/MetricCard';
 import MetricEditModal from './scoring/MetricEditModal';
 import { HorizontalBar, PRIORITY_COLORS } from './scoring/helpers';
+import ProfileManager from './ProfileManager';
 
 const VULN_PRIORITIES = ['V0', 'V1', 'V2', 'V3'] as const;
 const ASSET_PRIORITIES = ['A0', 'A1', 'A2', 'A3'] as const;
@@ -68,6 +72,7 @@ const VALUE_LABELS = {
 } as const;
 
 export default function DashboardPanel() {
+  const [presets, setPresets] = useState<ScoringPreset[]>([]);
   const [vulnStats, setVulnStats] = useState<VulnerabilityStats | null>(null);
   const [assetStats, setAssetStats] = useState<AssetStats | null>(null);
   const [findingStats, setFindingStats] = useState<FindingStats | null>(null);
@@ -117,6 +122,21 @@ export default function DashboardPanel() {
       if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    fetchScoringPresets().then(setPresets).catch((e) => setError(getErrorMessage(e)));
+  }, []);
+
+  const handleActivatePreset = async (id: string) => {
+    setLoading(true);
+    try {
+      await activateScoringPreset(id);
+      setPresets(await fetchScoringPresets());
+      await load();
+      showMessage('Active scoring preset changed');
+    } catch (e) { setError(getErrorMessage(e)); }
+    finally { setLoading(false); }
+  };
 
   const showMessage = (value: string) => {
     setMsg(value);
@@ -348,8 +368,25 @@ export default function DashboardPanel() {
   const editingMeta = editingColumn ? eligibleColumns[editingColumn] : null;
   const busy = saving || computingVulns || computingAssets || computingFindings;
 
+  const workspaceToolbar = (
+    <section className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <label className="flex items-center gap-2 text-sm text-gray-600">Active preset
+          <select value={presets.find((item) => item.is_active)?.id ?? ''} onChange={(event) => handleActivatePreset(event.target.value)} className="rounded-md border-gray-300 text-sm">
+            {presets.map((item) => <option key={item.id} value={item.id}>{item.name}{item.is_builtin ? ' · built-in' : ''}</option>)}
+          </select>
+        </label>
+      </div>
+    </section>
+  );
+
   return (
     <div className="space-y-5">
+      {workspaceToolbar}
+      <ProfileManager
+        activePreset={presets.find((item) => item.is_active)}
+        onChanged={async () => setPresets(await fetchScoringPresets())}
+      />
       {msg && <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">{msg}</div>}
       {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 

@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 from typing import Literal, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,6 +37,7 @@ async def list_vulnerabilities(
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
     priority_level: Optional[Literal["V0", "V1", "V2", "V3"]] = None,
+    preset_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
 ):
     try:
@@ -53,6 +55,7 @@ async def list_vulnerabilities(
             date_from=date_from,
             date_to=date_to,
             priority_level=priority_level,
+            preset_id=preset_id,
         )
         return PaginatedVulnerabilities(total=total, page=page, per_page=per_page, items=items)
     except Exception as exc:
@@ -70,9 +73,9 @@ async def vulnerability_stats(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{cve_id}", response_model=VulnerabilityDetail)
-async def get_vulnerability(cve_id: str, db: AsyncSession = Depends(get_db)):
+async def get_vulnerability(cve_id: str, preset_id: Optional[UUID] = None, db: AsyncSession = Depends(get_db)):
     try:
-        vuln = await get_vulnerability_by_cve_id(db, cve_id)
+        vuln = await get_vulnerability_by_cve_id(db, cve_id, preset_id)
         if vuln is None:
             raise HTTPException(status_code=404, detail=f"{cve_id} not found")
         return vuln

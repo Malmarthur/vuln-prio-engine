@@ -1,3 +1,22 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+    font-synthesis: none;
+  }
+
+  html {
+    @apply bg-slate-50 antialiased;
+  }
+
+  body {
+    @apply min-w-[320px] bg-slate-50 text-slate-900;
+  }
+
+  ::selection {
+    @apply bg-indigo-100 text-indigo-950;
+  }
+}

@@ -124,6 +124,151 @@ export interface ScoreDistribution {
   unscored_count: number;
 }
 
+export type ScoringStage = 'vulnerability' | 'asset' | 'finding';
+export type ScoringScope = ScoringStage | 'preset';
+
+export interface NamedScoringProfile {
+  id: string;
+  stage: ScoringStage;
+  name: string;
+  description: string;
+  config: ScoringProfile | AssetScoringProfile | FindingScoringProfile;
+  revision: number;
+  is_builtin: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScoringPreset {
+  id: string;
+  name: string;
+  description: string;
+  context_id: string;
+  vulnerability_profile_id: string;
+  asset_profile_id: string;
+  finding_profile_id: string;
+  is_builtin: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScoringJob {
+  id: string;
+  kind: 'run' | 'comparison';
+  scope: ScoringScope;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  progress: number;
+  progress_detail: {
+    phase?: 'queued' | 'preparing' | 'scoring' | 'finalizing' | 'completed' | 'cancelled' | 'failed';
+    target_id?: string;
+    target_name?: string;
+    completed_targets?: number;
+    total_targets?: number;
+  };
+  request: Record<string, unknown>;
+  error: string | null;
+  cancel_requested: boolean;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface ComparisonItem {
+  entity_id: string;
+  label: string;
+  baseline_score: number | null;
+  candidate_score: number | null;
+  score_delta: number | null;
+  baseline_priority: string | null;
+  candidate_priority: string | null;
+  baseline_rank: number | null;
+  candidate_rank: number | null;
+  rank_delta: number | null;
+}
+
+export interface ComparisonCandidateResult {
+  candidate_id: string;
+  distribution: Record<string, number>;
+  transition_matrix: Record<string, Record<string, number>>;
+  promoted: number;
+  demoted: number;
+  unchanged: number;
+  mean_score_delta: number;
+  median_score_delta: number;
+  spearman_rank_correlation: number | null;
+  items: ComparisonItem[];
+}
+
+export interface ComparisonResult {
+  job_id: string;
+  scope: ScoringScope;
+  baseline_id: string;
+  baseline_distribution: Record<string, number>;
+  candidates: ComparisonCandidateResult[];
+}
+
+export interface ComparisonScenarioSummary {
+  id: string;
+  name: string;
+  description: string;
+  revision: number | null;
+  profile_revisions: Record<string, number>;
+  distribution: Record<string, number>;
+}
+
+export interface ComparisonCandidateSummary extends ComparisonScenarioSummary {
+  transition_matrix: Record<string, Record<string, number>>;
+  promoted: number;
+  demoted: number;
+  unchanged: number;
+  mean_score_delta: number;
+  median_score_delta: number;
+  spearman_rank_correlation: number | null;
+}
+
+export interface ComparisonSummary {
+  job_id: string;
+  scope: ScoringScope;
+  status: string;
+  progress: number;
+  progress_detail: ScoringJob['progress_detail'];
+  baseline: ComparisonScenarioSummary;
+  candidates: ComparisonCandidateSummary[];
+  dataset_watermark: Record<string, { count?: number; updated_at?: string | null }>;
+  is_stale: boolean;
+  is_inconsistent: boolean;
+  details_available: boolean;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
+}
+
+export interface ComparisonHistoryItem {
+  job_id: string;
+  scope: ScoringScope;
+  baseline_id: string;
+  candidate_ids: string[];
+  status: ScoringJob['status'];
+  progress: number;
+  baseline_name: string;
+  candidate_names: string[];
+  is_stale: boolean;
+  is_inconsistent: boolean;
+  details_available: boolean;
+  created_at: string;
+  finished_at: string | null;
+  error: string | null;
+}
+
+export interface PaginatedComparisonItems {
+  total: number;
+  page: number;
+  per_page: number;
+  items: ComparisonItem[];
+}
+
 // --- Asset / finding types ---
 
 export interface AssetComponent {
@@ -375,6 +520,83 @@ export function fetchScoreDistribution(): Promise<ScoreDistribution> {
 
 export function fetchEligibleColumns(): Promise<Record<string, EligibleColumn>> {
   return request<Record<string, EligibleColumn>>('/scoring/eligible-columns');
+}
+
+export function fetchNamedProfiles(stage?: ScoringStage): Promise<NamedScoringProfile[]> {
+  return request<NamedScoringProfile[]>(`/scoring/profiles${stage ? `?stage=${stage}` : ''}`);
+}
+
+export function createNamedProfile(payload: Pick<NamedScoringProfile, 'stage' | 'name' | 'description' | 'config'>): Promise<NamedScoringProfile> {
+  return request<NamedScoringProfile>('/scoring/profiles', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function cloneNamedProfile(id: string, name: string): Promise<NamedScoringProfile> {
+  return request<NamedScoringProfile>(`/scoring/profiles/${id}/clone`, { method: 'POST', body: JSON.stringify({ name }) });
+}
+
+export function updateNamedProfile(id: string, payload: { name?: string; description?: string; config?: NamedScoringProfile['config'] }): Promise<NamedScoringProfile> {
+  return request<NamedScoringProfile>(`/scoring/profiles/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteNamedProfile(id: string): Promise<void> {
+  return request<void>(`/scoring/profiles/${id}`, { method: 'DELETE' });
+}
+
+export function fetchScoringPresets(): Promise<ScoringPreset[]> {
+  return request<ScoringPreset[]>('/scoring/presets');
+}
+
+export function activateScoringPreset(id: string): Promise<ScoringPreset> {
+  return request<ScoringPreset>(`/scoring/presets/${id}/activate`, { method: 'POST' });
+}
+
+export function cloneScoringPreset(id: string, name: string): Promise<ScoringPreset> {
+  return request<ScoringPreset>(`/scoring/presets/${id}/clone`, { method: 'POST', body: JSON.stringify({ name }) });
+}
+
+export function createScoringPreset(payload: { name: string; description: string; vulnerability_profile_id: string; asset_profile_id: string; finding_profile_id: string }): Promise<ScoringPreset> {
+  return request<ScoringPreset>('/scoring/presets', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function startScoringComparison(scope: ScoringScope, baselineId: string, candidateIds: string[]): Promise<ScoringJob> {
+  return request<ScoringJob>('/scoring/comparisons', {
+    method: 'POST',
+    body: JSON.stringify({ scope, baseline_id: baselineId, candidate_ids: candidateIds }),
+  });
+}
+
+export function fetchScoringJob(id: string): Promise<ScoringJob> {
+  return request<ScoringJob>(`/scoring/jobs/${id}`);
+}
+
+export function cancelScoringJob(id: string): Promise<ScoringJob> {
+  return request<ScoringJob>(`/scoring/jobs/${id}/cancel`, { method: 'POST' });
+}
+
+export function fetchComparisonResult(id: string): Promise<ComparisonResult> {
+  return request<ComparisonResult>(`/scoring/comparisons/${id}`);
+}
+
+export function fetchComparisonHistory(scope?: ScoringScope, limit = 20): Promise<ComparisonHistoryItem[]> {
+  return request<ComparisonHistoryItem[]>(`/scoring/comparisons${toQuery({ scope, limit })}`);
+}
+
+export function fetchComparisonSummary(id: string): Promise<ComparisonSummary> {
+  return request<ComparisonSummary>(`/scoring/comparisons/${id}/summary`);
+}
+
+export function fetchComparisonItems(id: string, params: {
+  candidate_id: string;
+  page?: number;
+  per_page?: number;
+  q?: string;
+  movement?: 'promoted' | 'demoted' | 'unchanged' | '';
+  from_priority?: string;
+  to_priority?: string;
+  sort?: 'abs_rank_delta' | 'rank_delta' | 'abs_score_delta' | 'score_delta' | 'label';
+  order?: 'asc' | 'desc';
+}, signal?: AbortSignal): Promise<PaginatedComparisonItems> {
+  return request<PaginatedComparisonItems>(`/scoring/comparisons/${id}/items${toQuery(params)}`, { signal });
 }
 
 // --- Asset / finding API functions ---

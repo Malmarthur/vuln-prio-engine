@@ -13,7 +13,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.scoring import ColumnConfig, ScoreDistribution, ScoringProfile
-from app.services.vulnerability_service import get_setting, set_setting
 
 logger = logging.getLogger(__name__)
 
@@ -74,15 +73,14 @@ DEFAULT_SCORING_PROFILE: dict[str, Any] = {
 
 
 async def get_scoring_profile(session: AsyncSession) -> ScoringProfile:
-    raw = await get_setting(session, "scoring_profile")
-    if raw is None:
-        raw = DEFAULT_SCORING_PROFILE
-    return ScoringProfile.model_validate(raw)
+    from app.services.profile_service import get_active_profile
+    return ScoringProfile.model_validate((await get_active_profile(session, "vulnerability")).config)
 
 
 async def save_scoring_profile(session: AsyncSession, profile: ScoringProfile) -> None:
     _validate_profile(profile)
-    await set_setting(session, "scoring_profile", profile.model_dump())
+    from app.services.profile_service import save_active_profile_config
+    await save_active_profile_config(session, "vulnerability", profile.model_dump())
 
 
 def _validate_profile(profile: ScoringProfile) -> None:
@@ -118,7 +116,13 @@ def _validate_profile(profile: ScoringProfile) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def compute_scores(session: AsyncSession, profile: ScoringProfile) -> tuple[int, dict[str, int]]:
+async def compute_scores(
+    session: AsyncSession,
+    profile: ScoringProfile,
+    profile_id: Any | None = None,
+    profile_revision: int = 1,
+    scoring_run_id: Any | None = None,
+) -> tuple[int, dict[str, int]]:
     """
     Load vulnerability data into Polars, compute scores vectorially, then
     write results back to DB via asyncpg temp-table COPY.
@@ -149,7 +153,11 @@ async def compute_scores(session: AsyncSession, profile: ScoringProfile) -> tupl
     )
     distribution = {row[0]: row[1] for row in dist_df.iter_rows()}
 
-    rows = await _write_back_scores(session, scored_df)
+    if profile_id is None:
+        from app.services.profile_service import get_active_preset
+        _, context = await get_active_preset(session)
+        profile_id = context.vulnerability_profile_id
+    rows = await _write_back_scores(session, scored_df, profile_id, profile_revision, scoring_run_id)
     logger.info("Scored %d rows. Distribution: %s", rows, distribution)
     return rows, distribution
 
@@ -269,7 +277,13 @@ def _build_scoring_pipeline(
     return lf.select("id", "priority_score", "priority_confidence", "priority_level")
 
 
-async def _write_back_scores(session: AsyncSession, df: pl.DataFrame) -> int:
+async def _write_back_scores(
+    session: AsyncSession,
+    df: pl.DataFrame,
+    profile_id: Any | None = None,
+    profile_revision: int = 1,
+    scoring_run_id: Any | None = None,
+) -> int:
     """
     Bulk-write scores to the vulnerability_scores table using TRUNCATE + COPY.
 
@@ -289,11 +303,27 @@ async def _write_back_scores(session: AsyncSession, df: pl.DataFrame) -> int:
     await asyncpg_conn.execute("DROP INDEX IF EXISTS ix_vulnerability_scores_priority_score")
     await asyncpg_conn.execute("DROP INDEX IF EXISTS ix_vulnerability_scores_priority_level")
 
-    # TRUNCATE is O(1) — instant regardless of row count
-    await asyncpg_conn.execute("TRUNCATE vulnerability_scores")
+    if profile_id is None:
+        from app.services.profile_service import get_active_preset
+        _, context = await get_active_preset(session)
+        profile_id = context.vulnerability_profile_id
+    await asyncpg_conn.execute(
+        "DELETE FROM vulnerability_scores WHERE vulnerability_profile_id = $1", profile_id
+    )
 
     # Rename 'id' → 'vulnerability_id' for the target table
-    write_df = df.rename({"id": "vulnerability_id"})
+    write_df = (
+        df.rename({"id": "vulnerability_id"})
+        .with_columns([
+            pl.lit(str(profile_id)).alias("vulnerability_profile_id"),
+            pl.lit(profile_revision).alias("profile_revision"),
+            pl.lit(str(scoring_run_id) if scoring_run_id else None).alias("scoring_run_id"),
+        ])
+        .select(
+            "vulnerability_id", "vulnerability_profile_id", "priority_score",
+            "priority_confidence", "priority_level", "profile_revision", "scoring_run_id",
+        )
+    )
 
     # Write CSV to an in-memory buffer (Rust-speed serialization via Polars)
     buf = io.BytesIO()
@@ -304,7 +334,10 @@ async def _write_back_scores(session: AsyncSession, df: pl.DataFrame) -> int:
         "vulnerability_scores",
         source=buf,
         format="csv",
-        columns=["vulnerability_id", "priority_score", "priority_confidence", "priority_level"],
+        columns=[
+            "vulnerability_id", "vulnerability_profile_id", "priority_score",
+            "priority_confidence", "priority_level", "profile_revision", "scoring_run_id",
+        ],
     )
 
     # Rebuild indexes from scratch (faster than incremental maintenance during COPY)
@@ -324,16 +357,18 @@ async def _write_back_scores(session: AsyncSession, df: pl.DataFrame) -> int:
 # ---------------------------------------------------------------------------
 
 
-async def get_score_distribution(session: AsyncSession) -> ScoreDistribution:
+async def get_score_distribution(session: AsyncSession, preset_id: Any | None = None) -> ScoreDistribution:
+    from app.services.profile_service import resolve_context
+    profile_id = (await resolve_context(session, preset_id)).vulnerability_profile_id
     # Priority counts
     rows = await session.execute(
         text("""
             SELECT priority_level, COUNT(*)
             FROM vulnerability_scores
-            WHERE priority_level IS NOT NULL
+            WHERE priority_level IS NOT NULL AND vulnerability_profile_id = :profile_id
             GROUP BY priority_level
             ORDER BY priority_level
-        """)
+        """), {"profile_id": profile_id}
     )
     priority_counts = {r[0]: r[1] for r in rows}
 
@@ -342,10 +377,10 @@ async def get_score_distribution(session: AsyncSession) -> ScoreDistribution:
         text("""
             SELECT FLOOR(priority_score / 10) * 10 AS bucket, COUNT(*)
             FROM vulnerability_scores
-            WHERE priority_score IS NOT NULL
+            WHERE priority_score IS NOT NULL AND vulnerability_profile_id = :profile_id
             GROUP BY bucket
             ORDER BY bucket
-        """)
+        """), {"profile_id": profile_id}
     )
     score_histogram = [
         {"bucket": f"{int(r[0])}-{min(int(r[0]) + 10, 100)}", "count": r[1]}
@@ -357,10 +392,10 @@ async def get_score_distribution(session: AsyncSession) -> ScoreDistribution:
         text("""
             SELECT FLOOR(priority_confidence / 10) * 10 AS bucket, COUNT(*)
             FROM vulnerability_scores
-            WHERE priority_confidence IS NOT NULL
+            WHERE priority_confidence IS NOT NULL AND vulnerability_profile_id = :profile_id
             GROUP BY bucket
             ORDER BY bucket
-        """)
+        """), {"profile_id": profile_id}
     )
     confidence_histogram = [
         {"bucket": f"{int(r[0])}-{min(int(r[0]) + 10, 100)}", "count": r[1]}
@@ -369,7 +404,8 @@ async def get_score_distribution(session: AsyncSession) -> ScoreDistribution:
 
     scored = (
         await session.execute(
-            text("SELECT COUNT(*) FROM vulnerability_scores WHERE priority_score IS NOT NULL")
+            text("SELECT COUNT(*) FROM vulnerability_scores WHERE priority_score IS NOT NULL AND vulnerability_profile_id = :profile_id"),
+            {"profile_id": profile_id},
         )
     ).scalar_one()
     total = (

@@ -143,7 +143,7 @@ async def test_asset_scoring_orders_contextual_priority(db_session):
     assert scores[low_asset.id].priority_level in {"A2", "A3"}
 
 
-async def test_legacy_finding_profile_collapses_asset_context_weights(db_session):
+async def test_legacy_finding_setting_is_retained_but_no_longer_read(db_session):
     await set_setting(
         db_session,
         "finding_scoring_profile",
@@ -164,9 +164,9 @@ async def test_legacy_finding_profile_collapses_asset_context_weights(db_session
     )
 
     profile = await get_finding_scoring_profile(db_session)
-    assert profile.thresholds.P0 == 80
-    assert profile.weights.vulnerability_priority == 60
-    assert profile.weights.asset_priority == 40
+    assert profile.thresholds.P0 == 76
+    assert profile.weights.vulnerability_priority == 50
+    assert profile.weights.asset_priority == 50
 
 
 async def test_windows_product_alias_matches_client_not_server(db_session, vuln_factory):

@@ -16,7 +16,6 @@ from app.schemas.finding import (
     PaginatedFindings,
 )
 from app.services.finding_service import (
-    DEFAULT_FINDING_SCORING_PROFILE,
     compute_finding_scores,
     get_finding_scoring_profile,
     get_finding_stats,
@@ -25,7 +24,7 @@ from app.services.finding_service import (
     run_matching,
     save_finding_scoring_profile,
 )
-from app.services.vulnerability_service import delete_setting
+from app.services.profile_service import reset_active_stage
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +76,8 @@ async def update_scoring_profile(profile: FindingScoringProfile, db: AsyncSessio
 @router.delete("/scoring/profile", response_model=FindingScoringProfile)
 async def reset_scoring_profile(db: AsyncSession = Depends(get_db)):
     try:
-        await delete_setting(db, "finding_scoring_profile")
-        return FindingScoringProfile.model_validate(DEFAULT_FINDING_SCORING_PROFILE)
+        profile = await reset_active_stage(db, "finding")
+        return FindingScoringProfile.model_validate(profile.config)
     except Exception as exc:
         logger.exception("Failed to reset finding scoring profile")
         raise HTTPException(status_code=500, detail="Failed to reset finding scoring profile") from exc
@@ -95,6 +94,7 @@ async def findings(
     internet_exposure: Optional[Literal["internet", "internal", "isolated", "unknown"]] = None,
     business_criticality: Optional[Literal["critical", "high", "medium", "low", "unknown"]] = None,
     patch_complexity: Optional[Literal["high", "medium", "low", "unknown"]] = None,
+    preset_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
 ):
     try:
@@ -109,6 +109,7 @@ async def findings(
             internet_exposure=internet_exposure,
             business_criticality=business_criticality,
             patch_complexity=patch_complexity,
+            preset_id=preset_id,
         )
         return PaginatedFindings(
             total=total,
@@ -122,9 +123,9 @@ async def findings(
 
 
 @router.get("/stats", response_model=FindingStats)
-async def finding_stats(db: AsyncSession = Depends(get_db)):
+async def finding_stats(preset_id: Optional[UUID] = None, db: AsyncSession = Depends(get_db)):
     try:
-        return await get_finding_stats(db)
+        return await get_finding_stats(db, preset_id)
     except Exception as exc:
         logger.exception("Failed to retrieve finding stats")
         raise HTTPException(status_code=500, detail="Failed to retrieve finding stats") from exc

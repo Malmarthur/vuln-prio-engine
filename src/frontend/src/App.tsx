@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import Layout from './components/Layout';
 import DashboardPanel from './components/DashboardPanel';
 import StatsBar from './components/StatsBar';
@@ -7,15 +7,39 @@ import VulnTable from './components/VulnTable';
 const SettingsPanel = lazy(() => import('./components/SettingsPanel'));
 const AssetsPanel = lazy(() => import('./components/AssetsPanel'));
 const FindingsPanel = lazy(() => import('./components/FindingsPanel'));
+const ComparisonWorkspace = lazy(() => import('./components/comparison/ComparisonWorkspace'));
+
+const VALID_TABS = new Set(['dashboard', 'compare', 'vulnerabilities', 'assets', 'findings', 'settings']);
+
+function tabFromUrl() {
+  const value = new URL(window.location.href).searchParams.get('tab');
+  return value && VALID_TABS.has(value) ? value : 'dashboard';
+}
 
 export default function App() {
-  const [tab, setTab] = useState('dashboard');
+  const [tab, setTab] = useState(tabFromUrl);
+
+  useEffect(() => {
+    const onPopState = () => setTab(tabFromUrl());
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const navigate = (nextTab: string) => {
+    setTab(nextTab);
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', nextTab);
+    if (nextTab !== 'compare') url.searchParams.delete('job');
+    window.history.pushState({}, '', url);
+  };
 
   return (
-    <Layout activeTab={tab} onTabChange={setTab}>
+    <Layout activeTab={tab} onTabChange={navigate}>
       <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading…</div>}>
         {tab === 'dashboard' ? (
           <DashboardPanel />
+        ) : tab === 'compare' ? (
+          <ComparisonWorkspace onManageProfiles={() => navigate('dashboard')} />
         ) : tab === 'vulnerabilities' ? (
           <>
             <StatsBar />

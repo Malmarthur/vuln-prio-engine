@@ -6,9 +6,9 @@ from uuid import UUID
 
 import polars as pl
 from sqlalchemy import Float, and_, bindparam, func, or_, select, text, tuple_
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import contains_eager, joinedload, selectinload, with_loader_criteria
 
 from app.models.asset import Asset, AssetComponent, AssetScore, Finding, FindingScore, VulnerabilityProduct
 from app.models.vulnerability import Vulnerability, VulnerabilityScore
@@ -17,7 +17,7 @@ from app.schemas.scoring import ScoringProfile
 from app.services.asset_service import compute_asset_scores
 from app.services.cpe import VersionMatcher, cpe_product_candidates
 from app.services.scoring_service import compute_scores, get_scoring_profile
-from app.services.vulnerability_service import backfill_vulnerability_products, get_setting, set_setting
+from app.services.vulnerability_service import backfill_vulnerability_products
 
 logger = logging.getLogger(__name__)
 
@@ -301,7 +301,10 @@ async def list_findings(
     internet_exposure: str | None = None,
     business_criticality: str | None = None,
     patch_complexity: str | None = None,
+    preset_id: UUID | None = None,
 ) -> tuple[list[Finding], int]:
+    from app.services.profile_service import resolve_context
+    context = await resolve_context(session, preset_id)
     filters = _finding_filters(
         search,
         asset_id,
@@ -312,11 +315,11 @@ async def list_findings(
         patch_complexity,
     )
     where_clause = and_(*filters) if filters else None
-    needs_score_join = priority_level is not None
+    needs_score_join = True
 
     count_stmt = select(func.count(Finding.id)).join(Finding.asset).join(Finding.vulnerability)
     if needs_score_join:
-        count_stmt = count_stmt.outerjoin(FindingScore)
+        count_stmt = count_stmt.outerjoin(FindingScore, and_(FindingScore.finding_id == Finding.id, FindingScore.scoring_context_id == context.id))
     if where_clause is not None:
         count_stmt = count_stmt.where(where_clause)
     total = (await session.execute(count_stmt)).scalar_one()
@@ -324,14 +327,16 @@ async def list_findings(
     stmt = (
         select(Finding)
         .options(
-            joinedload(Finding.asset).joinedload(Asset.score),
+            joinedload(Finding.asset).selectinload(Asset.score),
             joinedload(Finding.component),
-            joinedload(Finding.vulnerability).joinedload(Vulnerability.score),
-            joinedload(Finding.score),
+            joinedload(Finding.vulnerability).selectinload(Vulnerability.score),
+            contains_eager(Finding.score),
+            with_loader_criteria(AssetScore, AssetScore.asset_profile_id == context.asset_profile_id),
+            with_loader_criteria(VulnerabilityScore, VulnerabilityScore.vulnerability_profile_id == context.vulnerability_profile_id),
         )
         .join(Finding.asset)
         .join(Finding.vulnerability)
-        .outerjoin(FindingScore)
+        .outerjoin(FindingScore, and_(FindingScore.finding_id == Finding.id, FindingScore.scoring_context_id == context.id))
         .order_by(FindingScore.priority_score.desc().nulls_last(), Finding.last_seen_at.desc())
         .offset((page - 1) * per_page)
         .limit(per_page)
@@ -342,13 +347,15 @@ async def list_findings(
     return result.scalars().unique().all(), total
 
 
-async def get_finding_stats(session: AsyncSession) -> dict[str, Any]:
+async def get_finding_stats(session: AsyncSession, preset_id: UUID | None = None) -> dict[str, Any]:
+    from app.services.profile_service import resolve_context
+    context = await resolve_context(session, preset_id)
     total = (await session.execute(select(func.count(Finding.id)))).scalar_one()
     scored = (
-        await session.execute(select(func.count(FindingScore.finding_id)).where(FindingScore.priority_score.is_not(None)))
+        await session.execute(select(func.count(FindingScore.finding_id)).where(FindingScore.scoring_context_id == context.id, FindingScore.priority_score.is_not(None)))
     ).scalar_one()
     priority_rows = (
-        await session.execute(select(FindingScore.priority_level, func.count(FindingScore.finding_id)).group_by(FindingScore.priority_level))
+        await session.execute(select(FindingScore.priority_level, func.count(FindingScore.finding_id)).where(FindingScore.scoring_context_id == context.id).group_by(FindingScore.priority_level))
     ).all()
     exposure_rows = (
         await session.execute(
@@ -371,29 +378,60 @@ async def get_finding_stats(session: AsyncSession) -> dict[str, Any]:
 
 
 async def get_finding_scoring_profile(session: AsyncSession) -> FindingScoringProfile:
-    raw = await get_setting(session, "finding_scoring_profile") or DEFAULT_FINDING_SCORING_PROFILE
-    raw = _normalize_finding_scoring_profile(raw)
-    return FindingScoringProfile.model_validate(raw)
+    from app.services.profile_service import get_active_profile
+    raw = (await get_active_profile(session, "finding")).config
+    return FindingScoringProfile.model_validate(_normalize_finding_scoring_profile(raw))
 
 
 async def save_finding_scoring_profile(session: AsyncSession, profile: FindingScoringProfile) -> None:
-    await set_setting(session, "finding_scoring_profile", profile.model_dump())
+    from app.services.profile_service import save_active_profile_config
+    await save_active_profile_config(session, "finding", profile.model_dump())
 
 
-async def compute_finding_scores(session: AsyncSession) -> tuple[int, dict[str, int]]:
-    vuln_profile: ScoringProfile = await get_scoring_profile(session)
-    await compute_scores(session, vuln_profile)
-    await compute_asset_scores(session)
-    profile = (await get_finding_scoring_profile(session)).model_dump()
+async def compute_finding_scores(
+    session: AsyncSession,
+    scoring_profile: FindingScoringProfile | None = None,
+    context_id: UUID | None = None,
+    vulnerability_profile_id: UUID | None = None,
+    asset_profile_id: UUID | None = None,
+    profile_revisions: dict[str, int] | None = None,
+    scoring_run_id: UUID | None = None,
+) -> tuple[int, dict[str, int]]:
+    if context_id is None:
+        from app.models.scoring import ScoringProfile as NamedScoringProfile
+        from app.services.profile_service import get_active_preset
+        _, context = await get_active_preset(session)
+        context_id = context.id
+        vulnerability_profile_id = context.vulnerability_profile_id
+        asset_profile_id = context.asset_profile_id
+        finding_named = await session.get(NamedScoringProfile, context.finding_profile_id)
+        scoring_profile = scoring_profile or FindingScoringProfile.model_validate(finding_named.config)
+        vuln_named = await session.get(NamedScoringProfile, vulnerability_profile_id)
+        asset_named = await session.get(NamedScoringProfile, asset_profile_id)
+        await compute_scores(session, ScoringProfile.model_validate(vuln_named.config), vuln_named.id, vuln_named.revision)
+        await compute_asset_scores(session, None, asset_named.id, asset_named.revision)
+        profile_revisions = {str(vuln_named.id): vuln_named.revision, str(asset_named.id): asset_named.revision, str(finding_named.id): finding_named.revision}
+    profile = scoring_profile.model_dump()
     weights = profile["weights"]
     thresholds = profile["thresholds"]
 
     params = _score_params(weights, thresholds)
+    params.update({
+        "context_id": context_id,
+        "vulnerability_profile_id": vulnerability_profile_id,
+        "asset_profile_id": asset_profile_id,
+        "profile_revisions": profile_revisions or {},
+        "scoring_run_id": scoring_run_id,
+    })
     stmt = text(
         """
-            INSERT INTO finding_scores (finding_id, priority_score, priority_confidence, priority_level)
+            INSERT INTO finding_scores (
+                finding_id, scoring_context_id, priority_score, priority_confidence, priority_level,
+                profile_revisions, scoring_run_id
+            )
             SELECT
                 f.id,
+                :context_id,
                 ROUND((
                     COALESCE(vs.priority_score, 100) * :vuln_factor +
                     COALESCE(ars.priority_score, 100) * :asset_factor
@@ -417,25 +455,35 @@ async def compute_finding_scores(session: AsyncSession) -> tuple[int, dict[str, 
                         COALESCE(ars.priority_score, 100) * :asset_factor
                     ) >= :t_p2 THEN 'P2'
                     ELSE 'P3'
-                END
+                END,
+                CAST(:profile_revisions AS jsonb),
+                :scoring_run_id
             FROM findings f
             LEFT JOIN vulnerability_scores vs ON vs.vulnerability_id = f.vulnerability_id
+                AND vs.vulnerability_profile_id = :vulnerability_profile_id
             LEFT JOIN asset_scores ars ON ars.asset_id = f.asset_id
-            ON CONFLICT (finding_id) DO UPDATE SET
+                AND ars.asset_profile_id = :asset_profile_id
+            ON CONFLICT (finding_id, scoring_context_id) DO UPDATE SET
                 priority_score = EXCLUDED.priority_score,
                 priority_confidence = EXCLUDED.priority_confidence,
-                priority_level = EXCLUDED.priority_level
+                priority_level = EXCLUDED.priority_level,
+                profile_revisions = EXCLUDED.profile_revisions,
+                scoring_run_id = EXCLUDED.scoring_run_id
             """
-    ).bindparams(*[bindparam(name, type_=Float) for name in params])
+    ).bindparams(*[
+        bindparam(name, type_=Float)
+        for name in params
+        if name not in {"context_id", "vulnerability_profile_id", "asset_profile_id", "profile_revisions", "scoring_run_id"}
+    ], bindparam("profile_revisions", type_=JSONB))
     await session.execute(
         stmt,
         params,
     )
     await session.commit()
 
-    rows = (await session.execute(select(func.count(FindingScore.finding_id)))).scalar_one()
+    rows = (await session.execute(select(func.count(FindingScore.finding_id)).where(FindingScore.scoring_context_id == context_id))).scalar_one()
     dist_rows = (
-        await session.execute(select(FindingScore.priority_level, func.count(FindingScore.finding_id)).group_by(FindingScore.priority_level))
+        await session.execute(select(FindingScore.priority_level, func.count(FindingScore.finding_id)).where(FindingScore.scoring_context_id == context_id).group_by(FindingScore.priority_level))
     ).all()
     return rows, {row[0]: row[1] for row in dist_rows if row[0]}
 

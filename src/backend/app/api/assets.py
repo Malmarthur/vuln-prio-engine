@@ -15,7 +15,6 @@ from app.schemas.asset import (
     PaginatedAssets,
 )
 from app.services.asset_service import (
-    DEFAULT_ASSET_SCORING_PROFILE,
     compute_asset_scores,
     get_asset,
     get_asset_scoring_profile,
@@ -24,7 +23,7 @@ from app.services.asset_service import (
     list_assets,
     save_asset_scoring_profile,
 )
-from app.services.vulnerability_service import delete_setting
+from app.services.profile_service import reset_active_stage
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +52,7 @@ async def assets(
     business_criticality: Optional[Literal["critical", "high", "medium", "low", "unknown"]] = None,
     patch_complexity: Optional[Literal["high", "medium", "low", "unknown"]] = None,
     priority_level: Optional[Literal["A0", "A1", "A2", "A3"]] = None,
+    preset_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
 ):
     try:
@@ -65,6 +65,7 @@ async def assets(
             business_criticality=business_criticality,
             patch_complexity=patch_complexity,
             priority_level=priority_level,
+            preset_id=preset_id,
         )
         return PaginatedAssets(total=total, page=page, per_page=per_page, items=items)
     except Exception as exc:
@@ -73,9 +74,9 @@ async def assets(
 
 
 @router.get("/stats", response_model=AssetStats)
-async def asset_stats(db: AsyncSession = Depends(get_db)):
+async def asset_stats(preset_id: Optional[UUID] = None, db: AsyncSession = Depends(get_db)):
     try:
-        return await get_asset_stats(db)
+        return await get_asset_stats(db, preset_id)
     except Exception as exc:
         logger.exception("Failed to retrieve asset stats")
         raise HTTPException(status_code=500, detail="Failed to retrieve asset stats") from exc
@@ -117,17 +118,17 @@ async def update_scoring_profile(profile: AssetScoringProfile, db: AsyncSession 
 @router.delete("/scoring/profile", response_model=AssetScoringProfile)
 async def reset_scoring_profile(db: AsyncSession = Depends(get_db)):
     try:
-        await delete_setting(db, "asset_scoring_profile")
-        return AssetScoringProfile.model_validate(DEFAULT_ASSET_SCORING_PROFILE)
+        profile = await reset_active_stage(db, "asset")
+        return AssetScoringProfile.model_validate(profile.config)
     except Exception as exc:
         logger.exception("Failed to reset asset scoring profile")
         raise HTTPException(status_code=500, detail="Failed to reset asset scoring profile") from exc
 
 
 @router.get("/{asset_id}", response_model=AssetDetail)
-async def asset_detail(asset_id: UUID, db: AsyncSession = Depends(get_db)):
+async def asset_detail(asset_id: UUID, preset_id: Optional[UUID] = None, db: AsyncSession = Depends(get_db)):
     try:
-        asset = await get_asset(db, asset_id)
+        asset = await get_asset(db, asset_id, preset_id)
         if asset is None:
             raise HTTPException(status_code=404, detail="Asset not found")
         return asset

@@ -12,6 +12,7 @@ from app.database import AsyncSessionLocal, engine
 from app.ingestion.scheduler import init_scheduler, shutdown_scheduler
 from app.logging_config import setup_logging
 from app.services.vulnerability_service import cleanup_stale_ingestion_logs
+from app.services.profile_service import ensure_builtin_profiles, recover_interrupted_jobs
 
 logger = logging.getLogger(__name__)
 access_logger = logging.getLogger("app.access")
@@ -22,6 +23,10 @@ async def lifespan(app: FastAPI):
     setup_logging()
     logger.info("Starting %s", app_settings.app_name)
     async with AsyncSessionLocal() as session:
+        await ensure_builtin_profiles(session)
+        interrupted = await recover_interrupted_jobs(session)
+        if interrupted:
+            logger.warning("Marked %d interrupted scoring job(s) as failed", interrupted)
         count = await cleanup_stale_ingestion_logs(session)
         if count:
             logger.info("Cleaned up %d stale ingestion log(s) from previous run", count)

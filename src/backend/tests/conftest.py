@@ -62,7 +62,8 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
             text(
                 "TRUNCATE assets, asset_components, findings, finding_scores,"
                 " vulnerability_products, vulnerabilities, vulnerability_scores,"
-                " ingestion_logs, settings"
+                " ingestion_logs, settings, scoring_runs, scoring_jobs, scoring_presets,"
+                " scoring_contexts, scoring_profiles"
                 " RESTART IDENTITY CASCADE"
             )
         )

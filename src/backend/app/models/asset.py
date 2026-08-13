@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Boolean, Column, ForeignKey, Index, Numeric, String, Text, TIMESTAMP, UniqueConstraint
+from sqlalchemy import Boolean, Column, ForeignKey, Index, Integer, Numeric, String, Text, TIMESTAMP, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -31,19 +31,34 @@ class Asset(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    score = relationship("AssetScore", uselist=False, lazy="joined", cascade="all, delete-orphan")
+    score = relationship(
+        "AssetScore",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        back_populates="asset",
+    )
+
+    def _first_score(self):
+        scores = self.score
+        if isinstance(scores, (list, tuple)):
+            return scores[0] if scores else None
+        return scores
 
     @property
     def priority_score(self):
-        return self.score.priority_score if self.score else None
+        score = self._first_score()
+        return score.priority_score if score else None
 
     @property
     def priority_level(self):
-        return self.score.priority_level if self.score else None
+        score = self._first_score()
+        return score.priority_level if score else None
 
     @property
     def priority_confidence(self):
-        return self.score.priority_confidence if self.score else None
+        score = self._first_score()
+        return score.priority_confidence if score else None
 
     __table_args__ = (
         Index("ix_assets_name", "name"),
@@ -60,13 +75,29 @@ class AssetScore(Base):
         ForeignKey("assets.id", ondelete="CASCADE"),
         primary_key=True,
     )
+    asset_profile_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("scoring_profiles.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
     priority_score = Column(Numeric(4, 1))
     priority_confidence = Column(Numeric(4, 1))
     priority_level = Column(String(2))
+    profile_revision = Column(Integer, nullable=False, default=1, server_default="1")
+    scoring_run_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("scoring_runs.id", ondelete="SET NULL"),
+    )
+
+    asset = relationship("Asset", back_populates="score")
+    profile = relationship("ScoringProfile")
+    scoring_run = relationship("ScoringRun")
 
     __table_args__ = (
         Index("ix_asset_scores_priority_score", "priority_score"),
         Index("ix_asset_scores_priority_level", "priority_level"),
+        Index("ix_asset_scores_profile_id", "asset_profile_id"),
+        Index("ix_asset_scores_scoring_run_id", "scoring_run_id"),
     )
 
 
@@ -159,19 +190,34 @@ class Finding(Base):
     asset = relationship("Asset")
     component = relationship("AssetComponent")
     vulnerability = relationship("Vulnerability")
-    score = relationship("FindingScore", uselist=False, lazy="joined", cascade="all, delete-orphan")
+    score = relationship(
+        "FindingScore",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        back_populates="finding",
+    )
+
+    def _first_score(self):
+        scores = self.score
+        if isinstance(scores, (list, tuple)):
+            return scores[0] if scores else None
+        return scores
 
     @property
     def priority_score(self):
-        return self.score.priority_score if self.score else None
+        score = self._first_score()
+        return score.priority_score if score else None
 
     @property
     def priority_level(self):
-        return self.score.priority_level if self.score else None
+        score = self._first_score()
+        return score.priority_level if score else None
 
     @property
     def priority_confidence(self):
-        return self.score.priority_confidence if self.score else None
+        score = self._first_score()
+        return score.priority_confidence if score else None
 
     __table_args__ = (
         UniqueConstraint("asset_component_id", "vulnerability_id", name="uq_findings_component_vulnerability"),
@@ -189,11 +235,27 @@ class FindingScore(Base):
         ForeignKey("findings.id", ondelete="CASCADE"),
         primary_key=True,
     )
+    scoring_context_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("scoring_contexts.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
     priority_score = Column(Numeric(4, 1))
     priority_confidence = Column(Numeric(4, 1))
     priority_level = Column(String(2))
+    profile_revisions = Column(JSONB, nullable=False, default=dict, server_default="{}")
+    scoring_run_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("scoring_runs.id", ondelete="SET NULL"),
+    )
+
+    finding = relationship("Finding", back_populates="score")
+    context = relationship("ScoringContext")
+    scoring_run = relationship("ScoringRun")
 
     __table_args__ = (
         Index("ix_finding_scores_priority_score", "priority_score"),
         Index("ix_finding_scores_priority_level", "priority_level"),
+        Index("ix_finding_scores_context_id", "scoring_context_id"),
+        Index("ix_finding_scores_scoring_run_id", "scoring_run_id"),
     )
