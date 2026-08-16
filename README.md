@@ -45,6 +45,12 @@ docker compose exec backend alembic upgrade head
 
 Synthetic CycloneDX asset samples are available in `samples/assets/` for local demos and finding-prioritization tests.
 
+## Roadmap: LLM-assisted CPE identification
+
+A planned V2+ capability will use an LLM API to turn a vulnerability description and available CVE/vendor/product context into ranked CPE 2.3 candidates. The output will include rationale, evidence, confidence, and uncertainty, then go through strict validation and analyst review before approved mappings are sent to the existing `vulnerability_products` and CPE-matching pipeline.
+
+This is intentionally a human-in-the-loop workflow: LLM suggestions will be auditable and distinguishable from NVD/vendor mappings, with abstention when evidence is insufficient. The roadmap also includes a curated evaluation set covering precision/recall, abstention quality, reviewer agreement, latency, and cost.
+
 ## API Endpoints
 
 ```
