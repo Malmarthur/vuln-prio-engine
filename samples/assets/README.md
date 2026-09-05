@@ -1,6 +1,6 @@
 # Sample CycloneDX Assets
 
-This directory contains synthetic CycloneDX JSON BOMs for VulnPrio demos.
+This directory contains 50 synthetic CycloneDX JSON BOMs for VVLN demos (the current UI is still named VulnPrio).
 Each BOM represents one asset, and each `components[]` entry represents installed software with a CPE identifier.
 
 The catalog models a realistic enterprise inventory: internet edge systems, core business apps, identity, CI/CD, databases, monitoring, collaboration, end-user laptops, and a few segmented operational systems.
@@ -72,4 +72,13 @@ Open the VulnPrio frontend, go to `Assets`, and import these files one by one.
 After importing, run asset scoring, finding matching, and finding scoring from the dashboard.
 
 These assets intentionally use well-known CPEs that are likely to match a populated NVD dataset.
-For a real CPE source, use the official NVD CPE Dictionary or the NVD Products API.
+CPE identifiers can be checked against the NVD CPE Dictionary or Products API, but dictionary membership is not ground truth for product identity or applicability.
+
+
+## Scope and canonical direction
+
+These fixtures exercise the **current experimental CPE matcher**, not a complete applicability engine. They are not an annotated gold dataset: finding counts depend on the vulnerability data ingested, and an apparent match can require additional version/environment evidence. Reimporting an asset replaces its components and can cascade-delete their findings and scores; rerunning matching does not preserve the old finding history.
+
+The target product model gives software an internal **Product identity independent of CPE**. Official bindings and derived CPE names are separate, optional evidence. Software without a CPE must remain representable. Preserve this catalog and generator as a Lab baseline; add explicit labeled corpora for new resolvers rather than treating the existing BOMs as proof of accuracy.
+
+See [current roadmap](../../PLAN.md), [Product/CPE resolution](../../docs/RESOLUTION.md) and [Research Lab evaluation](../../docs/EVALUATION.md).
