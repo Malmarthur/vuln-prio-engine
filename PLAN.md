@@ -219,7 +219,7 @@ Sortie : un utilisateur peut déclencher la résolution et répondre à « pourq
 - [ ] Exécuter tests unitaires du resolver, tests intégration import/réimport/persistance, tests API et test UI ciblé.
 - [ ] Exécuter les régressions pertinentes : matching CPE/version, scoring asset/finding et Compare.
 - [ ] Tester la migration `upgrade`, `downgrade` d’une révision puis `upgrade` sur une base de test dédiée contenant des données existantes.
-- [ ] Obtenir un build frontend et un contrôle TypeScript propres (build exécuté ; contrôle bloqué par une erreur préexistante dans Compare).
+- [x] Exécuter le build frontend et le contrôle TypeScript.
 - [x] Mettre à jour [ROADMAP.md](ROADMAP.md), [README.md](README.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/RESOLUTION.md](docs/RESOLUTION.md) et [docs/EVALUATION.md](docs/EVALUATION.md) selon le résultat réel.
 
 Sortie : tranche démontrée, mesurée et documentée ; la roadmap peut décider de la tranche suivante sur preuve.
@@ -264,3 +264,4 @@ Sortie : tranche démontrée, mesurée et documentée ; la roadmap peut décider
 |---|---|---|
 | 2026-09-05 | Plan rédigé ; implémentation non commencée | Périmètre aligné avec le code, la roadmap et les documents canoniques |
 | 2026-09-05 | Implémentation v0 partielle | Noyau déterministe, persistance, API/UI et benchmark ajoutés. `compileall`, benchmark déterministe, `npm run build` et `git diff --check` réussissent. Les tests pytest, DB/Alembic et API n’ont pas tourné : le daemon Docker n’est pas disponible ; `npx tsc --noEmit` échoue sur un `.at()` préexistant dans `ComparisonWorkspace.tsx`. |
+| 2026-09-05 | Contrôle frontend rétabli | Correction de compatibilité TypeScript dans Compare ; `npx tsc --noEmit` et `npm run build` réussissent. Les validations PostgreSQL/Alembic/API restent à exécuter sur la base dédiée. |
