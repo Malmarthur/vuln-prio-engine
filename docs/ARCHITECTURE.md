@@ -23,14 +23,16 @@ Les adapters traduisent Qualys, Tenable, ServiceNow, GLPI, NVD, CycloneDX, etc. 
 | Asset | Entité observée/gérée : host, VM, cloud resource, container, workload, application, service, database ; identité interne de corrélation | `Asset` avec UUID, mais un seul `external_id` global et une source |
 | Source record | Objet externe identifié dans sa source, observations datées et lien vers l’Asset | `raw_payload` et `external_id`, pas de modèle multisource |
 | Software observation | Nom/version réellement observés sur un asset, date, source, evidence | `AssetComponent`, remplacé lors du réimport |
-| Product | Identité logicielle interne stable, vendor, nom canonique, aliases, metadata/composants, identifiants externes et bindings CPE optionnels | Aucun modèle canonique ; `VulnerabilityProduct` est une projection CPE NVD |
+| Product | Identité logicielle interne stable, vendor, nom canonique, aliases, metadata/composants, identifiants externes et bindings CPE optionnels | `Product`, aliases et bindings v0 ; `VulnerabilityProduct` reste une projection CPE NVD distincte |
 | Vulnerability | Vulnérabilité logique pouvant avoir CVE, advisory et autres identifiants/intelligence | `Vulnerability` UUID, mais `cve_id` obligatoire/unique et colonnes propres aux sources |
 | Finding | Application potentielle/effective d’une vulnérabilité à un asset/produit ; action consolidée | `Finding` existe, unicité composant × vulnérabilité |
-| Evidence / décision | Justification traçable des observations, résolutions, applicabilités et priorités | Blobs raw, type/confiance de match, snapshots de scoring ; pas d’entité générique |
+| Evidence / décision | Justification traçable des observations, résolutions, applicabilités et priorités | Décisions Product v0 append-only et snapshots ; pas d’entité générique couvrant les autres domaines |
 
 Un CVE seul est une Vulnerability ; ce CVE sur `finance-db-prod-01` est un Finding. Plusieurs composants et observations peuvent contribuer à l’action consolidée Asset × Vulnerability. Le produit et les versions restent dans les liens justificatifs, même si l’action est consolidée.
 
 ## Evidence et incertitude
+
+Product Resolution v0 matérialise ce contrat pour sa seule décision : run/module/configuration/catalogue, snapshot de composant, candidats et signaux sont persistés. Il ne remplace pas encore les blobs raw ou les mécanismes de scoring existants, et sa confiance est heuristique.
 
 Toute décision importante devrait référencer les observations et sources utilisées, leur chaîne raw, la méthode, le resolver/module et sa version, sa configuration, ses candidats/scores, la confiance et une éventuelle validation humaine. Pour une inférence LLM : provider, modèle, prompt et schéma versionnés. Distinguer heure d’observation, d’ingestion et de décision lorsque pertinentes.
 
@@ -63,4 +65,4 @@ Le scoring actuel constitue une première stratégie : vulnérabilité puis asse
 
 ## Évolution incrémentale
 
-Les identités actuelles, pipelines et API restent utiles. Ajouter les nouvelles abstractions à côté, évaluer sur fixtures figées puis raccorder une tranche prouvée. Ne pas renommer `VulnerabilityProduct` en Product pour masquer la différence ; ne pas convertir sans analyse les findings existants ou effacer leurs scores. Détails : [inventory](INVENTORY.md), [résolution](RESOLUTION.md), [LLM](LLM.md), [évaluation](EVALUATION.md), [prochaine tranche](../PLAN.md).
+Les identités actuelles, pipelines et API restent utiles. Ajouter les nouvelles abstractions à côté, évaluer sur fixtures figées puis raccorder une tranche prouvée. Ne pas renommer `VulnerabilityProduct` en Product pour masquer la différence ; ne pas convertir sans analyse les findings existants ou effacer leurs scores. Détails : [inventory](INVENTORY.md), [résolution](RESOLUTION.md), [LLM](LLM.md), [évaluation](EVALUATION.md), [roadmap](../ROADMAP.md) et [plan actif](../PLAN.md).

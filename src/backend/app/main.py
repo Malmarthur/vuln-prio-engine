@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import assets, findings, ingestion, scoring, settings, vulnerabilities
+from app.api import assets, findings, ingestion, products, scoring, settings, vulnerabilities
 from app.config import settings as app_settings
 from app.database import AsyncSessionLocal, engine
 from app.ingestion.scheduler import init_scheduler, shutdown_scheduler
@@ -82,6 +82,7 @@ app.include_router(findings.router, prefix="/api/v1")
 app.include_router(ingestion.router, prefix="/api/v1")
 app.include_router(settings.router, prefix="/api/v1")
 app.include_router(scoring.router, prefix="/api/v1")
+app.include_router(products.router, prefix="/api/v1")
 
 
 @app.get("/health")

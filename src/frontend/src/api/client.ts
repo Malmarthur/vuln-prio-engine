@@ -283,6 +283,46 @@ export interface AssetComponent {
   cpe_vendor: string | null;
   cpe_product: string | null;
   cpe_version: string | null;
+  latest_resolution: ProductResolutionDecision | null;
+}
+
+export interface CanonicalProduct {
+  id: string;
+  key: string;
+  vendor: string;
+  canonical_name: string;
+}
+
+export interface ProductResolutionDecision {
+  id: string;
+  status: 'resolved' | 'unknown' | 'ambiguous';
+  resolved_product: CanonicalProduct | null;
+  method: string;
+  confidence: number | null;
+  confidence_basis: string;
+  candidates: { schema_version: string; items: Array<{ product_key: string; vendor: string; canonical_name: string; reasons: Array<{ kind: string }> }> };
+  evidence: { schema_version: string; signals: Array<{ kind: string; product_key: string }> };
+  module_id: string;
+  module_version: string;
+  configuration_digest: string;
+  catalog_digest: string;
+  decided_at: string;
+}
+
+export interface ProductResolutionRunResponse {
+  id: string;
+  status: string;
+  components_processed: number;
+  resolved_count: number;
+  unknown_count: number;
+  ambiguous_count: number;
+  error_count: number;
+  module_id: string;
+  module_version: string;
+  configuration_digest: string;
+  catalog_digest: string;
+  started_at: string;
+  finished_at: string | null;
 }
 
 export interface Asset {
@@ -617,6 +657,13 @@ export function importCycloneDXAsset(payload: Record<string, unknown>): Promise<
   return request<CycloneDXImportResponse>('/assets/import/cyclonedx', {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+export function runProductResolution(assetId?: string): Promise<ProductResolutionRunResponse> {
+  return request<ProductResolutionRunResponse>('/products/resolution/run', {
+    method: 'POST',
+    body: JSON.stringify(assetId ? { asset_id: assetId } : {}),
   });
 }
 

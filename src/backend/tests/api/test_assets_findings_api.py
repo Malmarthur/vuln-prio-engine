@@ -46,6 +46,23 @@ async def test_assets_import_list_and_stats(client):
     assert res.json()["scored_assets"] == 0
 
 
+async def test_product_resolution_endpoint_returns_decision_on_asset_component(client):
+    payload = _payload()
+    payload["components"] = [{"name": "Widget", "vendor": "Acme", "version": "1.0"}]
+    imported = await client.post("/api/v1/assets/import/cyclonedx", json=payload)
+    assert imported.status_code == 200
+    asset_id = imported.json()["asset"]["id"]
+
+    response = await client.post("/api/v1/products/resolution/run", json={"asset_id": asset_id})
+    assert response.status_code == 200
+    assert response.json()["resolved_count"] == 1
+
+    assets = await client.get("/api/v1/assets")
+    resolution = assets.json()["items"][0]["components"][0]["latest_resolution"]
+    assert resolution["status"] == "resolved"
+    assert resolution["resolved_product"]["key"] == "acme/widget"
+
+
 async def test_findings_match_and_score_endpoints(client, db_session, vuln_factory):
     vuln = vuln_factory(
         cve_id="CVE-2025-00001",

@@ -6,6 +6,7 @@ import {
   fetchAssets,
   fetchAssetStats,
   importCycloneDXAsset,
+  runProductResolution,
 } from '../api/client';
 import { getErrorMessage } from '../lib/utils';
 import CompactKpi, { CompactKpiStrip } from './CompactKpi';
@@ -27,6 +28,7 @@ export default function AssetsPanel() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +106,21 @@ export default function AssetsPanel() {
     ));
   };
 
+  const handleResolution = async () => {
+    setResolving(true);
+    setMsg(null);
+    setError(null);
+    try {
+      const result = await runProductResolution();
+      setMsg(`Resolved ${result.components_processed.toLocaleString()} components: ${result.resolved_count} resolved, ${result.unknown_count} unknown, ${result.ambiguous_count} ambiguous.`);
+      load(page, { clearError: false });
+    } catch (e) {
+      setError(getErrorMessage(e));
+    } finally {
+      setResolving(false);
+    }
+  };
+
   const handleAssetKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, assetId: string) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -143,6 +160,9 @@ export default function AssetsPanel() {
             {importing && importProgress ? `Importing ${importProgress.current}/${importProgress.total}...` : 'Import CycloneDX JSON'}
             <input type="file" accept="application/json,.json" className="hidden" onChange={handleFile} disabled={importing} multiple />
           </label>
+          <button type="button" onClick={handleResolution} disabled={resolving || importing} className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            {resolving ? 'Resolving products...' : 'Resolve products'}
+          </button>
         </div>
       </div>
 
@@ -244,7 +264,7 @@ function AssetComponents({ asset }: { asset: Asset }) {
         <table className="w-full text-left">
           <thead className="sticky top-0 bg-white shadow-sm">
             <tr>
-              {['Component', 'Version', 'Vendor / Product', 'CPE'].map((label) => (
+              {['Component', 'Version', 'Vendor / Product', 'Canonical Product', 'Resolution', 'CPE'].map((label) => (
                 <th key={label} className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
                   {label}
                 </th>
@@ -275,6 +295,14 @@ function ComponentRow({ component }: { component: AssetComponent }) {
         <div>{component.vendor ?? component.cpe_vendor ?? '-'}</div>
         <div className="text-xs text-gray-500">{component.product ?? component.cpe_product ?? '-'}</div>
       </td>
+      <td className="px-3 py-2 text-sm text-gray-700">
+        {component.latest_resolution?.resolved_product ? (
+          <div><div className="font-medium">{component.latest_resolution.resolved_product.key}</div><div className="text-xs text-gray-500">{component.latest_resolution.resolved_product.vendor} / {component.latest_resolution.resolved_product.canonical_name}</div></div>
+        ) : <span className="text-gray-400">-</span>}
+      </td>
+      <td className="px-3 py-2 text-xs text-gray-700">
+        <ResolutionCell component={component} />
+      </td>
       <td className="px-3 py-2 text-sm">
         {component.cpe ? (
           <div className="space-y-1">
@@ -293,6 +321,13 @@ function ComponentRow({ component }: { component: AssetComponent }) {
       </td>
     </tr>
   );
+}
+
+function ResolutionCell({ component }: { component: AssetComponent }) {
+  const resolution = component.latest_resolution;
+  if (!resolution) return <span className="text-gray-400">Not run</span>;
+  const color = resolution.status === 'resolved' ? 'bg-green-100 text-green-800' : resolution.status === 'ambiguous' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700';
+  return <div className="space-y-1"><span className={`rounded px-1.5 py-0.5 font-semibold ${color}`}>{resolution.status}</span>{resolution.confidence != null && <span className="ml-1 text-gray-500">{resolution.confidence}%</span>}{resolution.status === 'ambiguous' && <div className="max-w-xs text-gray-500">Candidates: {resolution.candidates.items.map((item) => item.product_key).join(', ')}</div>}<div className="max-w-xs text-gray-400">{resolution.evidence.signals.map((signal) => signal.kind).join(', ') || resolution.confidence_basis}</div></div>;
 }
 
 function PriorityBadge({ level }: { level: string | null }) {

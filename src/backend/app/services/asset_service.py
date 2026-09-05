@@ -113,7 +113,10 @@ async def list_assets(
     if where_clause is not None:
         stmt = stmt.where(where_clause)
     rows = await session.execute(stmt)
-    return rows.scalars().unique().all(), total
+    assets = rows.scalars().unique().all()
+    from app.services.product_resolution_service import attach_latest_resolutions
+    await attach_latest_resolutions(session, assets)
+    return assets, total
 
 
 async def get_asset(session: AsyncSession, asset_id: UUID, preset_id: UUID | None = None) -> Asset | None:
@@ -125,7 +128,11 @@ async def get_asset(session: AsyncSession, asset_id: UUID, preset_id: UUID | Non
         .outerjoin(AssetScore, and_(AssetScore.asset_id == Asset.id, AssetScore.asset_profile_id == profile_id))
         .where(Asset.id == asset_id)
     )
-    return result.scalars().unique().one_or_none()
+    asset = result.scalars().unique().one_or_none()
+    if asset:
+        from app.services.product_resolution_service import attach_latest_resolutions
+        await attach_latest_resolutions(session, [asset])
+    return asset
 
 
 async def get_asset_stats(session: AsyncSession, preset_id: UUID | None = None) -> dict[str, Any]:

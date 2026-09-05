@@ -3,6 +3,7 @@ from typing import Any, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
+from app.schemas.product import ProductResolutionDecisionResponse
 
 AssetExposure = Literal["internet", "internal", "isolated", "unknown"]
 BusinessCriticality = Literal["critical", "high", "medium", "low", "unknown"]
@@ -23,6 +24,7 @@ class AssetComponentResponse(BaseModel):
     cpe_vendor: Optional[str] = None
     cpe_product: Optional[str] = None
     cpe_version: Optional[str] = None
+    latest_resolution: ProductResolutionDecisionResponse | None = None
 
 
 class AssetResponse(BaseModel):

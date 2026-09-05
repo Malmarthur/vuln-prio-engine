@@ -1,6 +1,6 @@
 # Vision produit canonique — VVLN
 
-Direction adoptée le 2026-09-05. Ce document décrit la cible ; [l’audit](AUDIT.md) décrit le code et [PLAN.md](../PLAN.md) son évolution. L’ancien nom VulnPrio reste présent dans l’implémentation.
+Direction adoptée le 2026-09-05. Ce document décrit la cible ; [l’audit](AUDIT.md) décrit le code, [ROADMAP.md](../ROADMAP.md) ordonne son évolution et [PLAN.md](../PLAN.md) détaille la tranche active. L’ancien nom VulnPrio reste présent dans l’implémentation.
 
 ## Thèse et valeur
 
@@ -16,7 +16,7 @@ Le Research Lab historique est un actif à conserver. Il doit progressivement pe
 
 ## Priorité produit
 
-D’abord un prototype technique privé démontrant résolution, applicabilité, consolidation et priorisation ; ensuite une démonstration mesurable, validation du besoin sur le terrain et un design partner. Les fonctionnalités commerciales et les graphes d’attaque viennent après preuve de valeur. Voir les phases 0–6 de [PLAN.md](../PLAN.md) ; elles remplacent la numérotation historique.
+D’abord un prototype technique privé démontrant résolution, applicabilité, consolidation et priorisation ; ensuite une démonstration mesurable, validation du besoin sur le terrain et un design partner. Les fonctionnalités commerciales et les graphes d’attaque viennent après preuve de valeur. Voir les phases 0–6 de [ROADMAP.md](../ROADMAP.md) ; elles remplacent la numérotation historique.
 
 Ne pas anticiper dix scanners, le remplacement des scanners ou de la CMDB, un ticketing complet, un DSL de scoring gigantesque, des microservices sans justification, du LLM partout ou une architecture dictée par une levée de fonds hypothétique. Ne pas supprimer le Lab.
 

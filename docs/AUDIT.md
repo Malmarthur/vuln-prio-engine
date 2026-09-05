@@ -12,7 +12,7 @@ Classification **avant modification** : A = toujours valide ; B = valide mais in
 |---|---|---|
 | `AGENTS.md` | D pour mission/priorités, B pour structure, A pour une partie des invariants ingestion | Présente agrégateur/papier, scoring futur et phase polish ; remplacé par contexte compact canonique |
 | `CLAUDE.md` (ignoré) | D/B/A comme AGENTS | Copie quasi identique (seuls titre/introduction diffèrent) ; remplacée par pointeur vers AGENTS |
-| `PLAN.md` (ignoré) | C pour phases 1–14 ; D pour direction CPE phase 15 ; A/B pour actifs et principes de revue/évaluation | Préservé intégralement en archive ; nouveau plan avec vrais acquis et phases 0–6 |
+| `PLAN.md` (ignoré) | C pour phases 1–14 ; D pour direction CPE phase 15 ; A/B pour actifs et principes de revue/évaluation | Préservé intégralement en archive ; remplacé par une roadmap avec vrais acquis et phases 0–6, puis un plan séparé pour la tranche active |
 | `README.md` | B pour fonctionnement/démarrage ; D pour roadmap LLM→CPE comme pivot ; C pour positionnement papier | Réécrit en entrée produit + capacités actuelles + guide opérationnel |
 | `samples/assets/README.md` | A pour catalogue/génération ; B pour portée CPE et résultats attendus | Catalogue conservé, limites expérimentales et pointeurs canoniques ajoutés |
 | `.gitignore` | D pour exclusion du contexte partagé | Suppression des exclusions PLAN.md/CLAUDE.md pour transmettre la documentation aux nouveaux clones |
@@ -84,10 +84,10 @@ ATT&CK central, remplacement de CMDB ou LLM omniprésent : aucune implémentatio
 8. **Évaluation** : pas de registry générique ni corpus annoté/snapshot immutable pour chaque module. Profils/runs/comparaisons constituent le socle réutilisable.
 9. **LLM, attack graph, defenses, commercialisation** : non implémentés, à phaser. Les logs opérationnels ne remplacent pas audit métier, RBAC ou isolation tenant.
 
-Ces écarts sont des travaux d’évolution, pas une justification de migration globale pendant cet audit. La tranche Product v0 dans [PLAN.md](../PLAN.md) s’appuie sur les composants importés et introduit identité/evidence/évaluation sans remplacer les moteurs actuels.
+Ces écarts sont des travaux d’évolution, pas une justification de migration globale pendant cet audit. La tranche Product v0 dans [PLAN.md](../PLAN.md), ordonnée par la [roadmap](../ROADMAP.md), s’appuie sur les composants importés et introduit identité/evidence/évaluation sans remplacer les moteurs actuels.
 
 ## Livrables et validation de cette passe
 
-Modifiés : AGENTS.md, README.md, samples/assets/README.md, .gitignore. Réécrits et désormais non ignorés : PLAN.md, CLAUDE.md. Créés : VISION.md, ARCHITECTURE.md, INVENTORY.md, RESOLUTION.md, LLM.md, EVALUATION.md, ce AUDIT.md sous docs/, et history/PRE_REALIGNMENT.md.
+Modifiés : AGENTS.md, README.md, samples/assets/README.md, .gitignore. Réécrits et désormais non ignorés : PLAN.md, CLAUDE.md. Créés : ROADMAP.md, VISION.md, ARCHITECTURE.md, INVENTORY.md, RESOLUTION.md, LLM.md, EVALUATION.md, ce AUDIT.md sous docs/, et history/PRE_REALIGNMENT.md. ROADMAP.md porte désormais l’avancement global ; PLAN.md porte la tranche active.
 
 Validation : références locales de la documentation active et chaîne de migrations contrôlées statiquement, copies historiques comparées aux originaux, `git diff --check`, visibilité Git de tous les documents partagés et périmètre du diff vérifiés. Aucun fichier métier, migration, fixture JSON ou configuration locale des agents modifié. Aucune base, ingestion, suite de tests, build frontend ou démo navigateur exécuté : cette passe établit l’état du code, pas une certification de fonctionnement runtime. Les « 243 tests », volumes de findings et vérifications UI du plan ancien restent des résultats historiques non revalidés.

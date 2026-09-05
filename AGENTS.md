@@ -8,10 +8,11 @@ La vision canonique a été révisée le **2026-09-05**. Hiérarchie : instructi
 
 Lire au début d’une session :
 
-1. [PLAN.md](PLAN.md) : avancement réel et prochaine tranche.
-2. [Vision](docs/VISION.md) et [architecture](docs/ARCHITECTURE.md) : invariants et cible.
-3. [État du code et audit documentaire](docs/AUDIT.md) : preuves, limites, contradictions.
-4. Selon la tâche : [Product/CPE et versions](docs/RESOLUTION.md), [assets/inventory](docs/INVENTORY.md), [LLM](docs/LLM.md), [Research Lab](docs/EVALUATION.md).
+1. [ROADMAP.md](ROADMAP.md) : avancement produit réel et ordre des phases.
+2. [PLAN.md](PLAN.md) : plan d’exécution de la seule tranche active.
+3. [Vision](docs/VISION.md) et [architecture](docs/ARCHITECTURE.md) : invariants et cible.
+4. [État du code et audit documentaire](docs/AUDIT.md) : preuves, limites, contradictions.
+5. Selon la tâche : [Product/CPE et versions](docs/RESOLUTION.md), [assets/inventory](docs/INVENTORY.md), [LLM](docs/LLM.md), [Research Lab](docs/EVALUATION.md).
 
 [README.md](README.md) fournit le démarrage et les commandes. [L’archive](docs/history/PRE_REALIGNMENT.md) n’est jamais une liste de travaux à exécuter. CLAUDE.md pointe ici pour éviter deux contextes concurrents.
 
@@ -39,7 +40,7 @@ Encore absents : Product canonique/store d’aliases, résolution asset multisou
 
 - Inspecter les modèles, services, migrations et tests concernés avant de changer le code. Préserver les pipelines, fixtures, résultats et fonctionnalités du Lab.
 - Avancer par une tranche verticale testable ; migrations additives justifiées. Pas de refonte globale, microservices, CMDB enterprise, DSL géant, dix connecteurs ou attack paths anticipés.
-- **Tenir PLAN.md à jour immédiatement** : marquer ✅ ce qui est terminé avec validation, préciser les limites et actualiser la prochaine tranche. Ne pas remettre TODO une capacité existante ; utiliser Implémenté / Partiel / Expérimental / Non implémenté.
+- **Tenir PLAN.md à jour immédiatement** pendant une tranche : marquer ✅ ce qui est terminé avec validation et préciser les limites. À la fin, actualiser ROADMAP.md avec l’état réel et créer le plan de la tranche suivante. Ne pas remettre TODO une capacité existante ; utiliser Implémenté / Partiel / Expérimental / Non implémenté.
 - Maintenir les documents canoniques concernés ; archiver clairement les décisions remplacées. Les nouveaux fichiers partagés doivent être visibles par Git.
 - Conserver la propriété des colonnes par source, le merge `sources_raw` et le fallback KEV ; voir l’audit. Ne pas présenter ces blobs comme un historique immutable.
 - Tester proportionnellement au changement et rapporter ce qui a effectivement tourné. Les tests DB tronquent/suppriment leurs tables : utiliser exclusivement une base de test dédiée.

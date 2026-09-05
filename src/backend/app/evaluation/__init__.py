@@ -1,0 +1,3 @@
+from app.evaluation.product_resolution import PRODUCT_RESOLVER_MODULE, run_product_resolution_benchmark
+
+MODULE_REGISTRY = {PRODUCT_RESOLVER_MODULE.module_id: PRODUCT_RESOLVER_MODULE}

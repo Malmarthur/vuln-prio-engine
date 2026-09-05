@@ -25,7 +25,7 @@ Les comparaisons mesurent distributions, transitions de niveaux, promotions/dém
 - Les jobs vivent dans le processus FastAPI ; au redémarrage les jobs interrompus sont marqués failed. Ce n’est pas une file distribuée ni une reprise exacte.
 - `priority_confidence` représente principalement la disponibilité pondérée des données ; `match_confidence` est heuristique. Aucune calibration empirique générale n’est établie.
 - Le catalogue synthétique possède un générateur déterministe mais pas de vérité terrain complète sur les vulnérabilités applicables. Le nombre de findings dépend aussi des données NVD ingérées.
-- Pas de registry de modules approximatifs, d’évaluation ML/LLM/prompts ou de benchmark générique automatisé. Tests logiciels et benchmark scientifique sont complémentaires.
+- Le registry en mémoire ne couvre pour l’instant que `product_resolver` v0 ; il n’existe pas de plateforme de plugins, d’évaluation ML/LLM/prompts ou de benchmark générique universel. Tests logiciels et benchmark scientifique sont complémentaires.
 
 ## Contrat cible et adaptation progressive
 
@@ -58,4 +58,4 @@ Le Module Registry décrira progressivement contrats, versions et configurations
 
 La phase 1 doit ajouter une première mesure end-to-end des incertitudes. Ne pas multiplier arbitrairement les confidences des étapes comme si elles étaient des probabilités indépendantes.
 
-Prochaine intégration : une résolution Product v0 déterministe, corpus figé et résultats traçables, évaluée à côté des comparaisons de scoring existantes. Voir [PLAN.md](../PLAN.md) pour le périmètre et les critères d’acceptation.
+Le premier module enregistré est `product_resolver` v0 : son runner produit exactitude des résolutions, coverage, faux matchs, taux `unknown`/`ambiguous` et top-k avec dénominateurs. Catalogue et corpus JSON distincts sont sous `samples/evaluation/product_resolution_v0/`; le rapport porte leurs digests. Voir [PLAN.md](../PLAN.md) pour les validations encore requises.

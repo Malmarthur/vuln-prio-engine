@@ -2,12 +2,13 @@
 
 VVLN construit une plateforme de vulnerability management centrée sur la réconciliation **Asset ↔ Product ↔ Vulnerability ↔ Finding ↔ Evidence**, puis sur une priorisation contextuelle explicable. Elle s’appuie sur les inventaires, scanners et sources de vulnérabilités existants. Le Research Lab historique reste sa couche d’expérimentation et d’évaluation.
 
-**État actuel :** prototype privé avec agrégation NVD/EPSS/KEV/EUVD, import d’assets CycloneDX, matching CPE/version, findings, scoring configurable à trois niveaux et espace de comparaison. Le Product canonique indépendant du CPE, la résolution asset multisource et l’Evidence de premier rang restent à construire. L’UI et plusieurs identifiants techniques utilisent encore le nom **VulnPrio**.
+**État actuel :** prototype privé avec agrégation NVD/EPSS/KEV/EUVD, import d’assets CycloneDX, Product Resolution v0 déterministe, matching CPE/version, findings, scoring configurable à trois niveaux et espace de comparaison. La résolution asset multisource et l’Evidence générique de premier rang restent à construire. L’UI et plusieurs identifiants techniques utilisent encore le nom **VulnPrio**.
 
 ## Documentation de référence
 
 - [AGENTS.md](AGENTS.md) : point d’entrée des agents et règles de travail.
-- [PLAN.md](PLAN.md) : avancement réel, phases 0–6 et prochaine tranche Product Resolution v0.
+- [ROADMAP.md](ROADMAP.md) : avancement réel, ordre des tranches du cœur et phases 0–6.
+- [PLAN.md](PLAN.md) : plan d’exécution de la tranche active Product Resolution v0.
 - [Vision produit](docs/VISION.md) : positionnement et direction future State/Capability graph.
 - [Architecture/domaine](docs/ARCHITECTURE.md), [Product/CPE et versions](docs/RESOLUTION.md), [assets/inventory](docs/INVENTORY.md).
 - [Architecture LLM](docs/LLM.md) et [Research Lab/évaluation](docs/EVALUATION.md).
@@ -21,7 +22,7 @@ La direction a changé le 2026-09-05 ; le code reste la vérité sur ce qui fonc
 | Couche | Technologie / emplacement |
 |---|---|
 | Backend | Python 3.12, FastAPI, SQLAlchemy 2 async ; `src/backend/app/` |
-| Données | PostgreSQL 16, neuf migrations Alembic ; `src/backend/alembic/` |
+| Données | PostgreSQL 16, dix migrations Alembic ; `src/backend/alembic/` |
 | Ingestion / calcul | Polars, httpx, APScheduler dans le processus FastAPI |
 | Frontend | React 18, Vite, TypeScript, Tailwind ; `src/frontend/` |
 | Développement | Docker Compose, pgAdmin ; `docker-compose.yml`, `Makefile` |
@@ -58,7 +59,8 @@ Le scheduler d’ingestion est intégré au backend et réglable dans Settings. 
 
 1. Dans Settings, configurer/déclencher l’ingestion des sources nécessaires.
 2. Dans Assets, importer un ou plusieurs fichiers CycloneDX JSON ; un BOM représente un asset, ses composants représentent le logiciel observé. [50 samples synthétiques](samples/assets/README.md) sont fournis.
-3. Lancer le matching depuis Findings. Aujourd’hui seuls les composants avec champs CPE exploitables participent ; les matchs ne sont pas une preuve complète d’applicabilité.
+3. Dans Assets, lancer « Resolve products » pour créer des décisions Product déterministes indépendantes de l’import. `unknown` et `ambiguous` sont conservés et visibles ; la confiance est heuristique.
+4. Lancer le matching depuis Findings. Aujourd’hui seuls les composants avec champs CPE exploitables participent ; les matchs ne sont pas une preuve complète d’applicabilité.
 4. Configurer et calculer les scores vulnerability/asset/finding dans Dashboard. Consulter les détails et filtres dans les listes.
 5. Dans Compare, choisir une référence et des candidats pour comparer profils/presets, distributions, transitions et divergences. Les résumés historiques ne garantissent pas le replay des données d’origine.
 
@@ -76,8 +78,9 @@ Référence précise : routes de [app/api/](src/backend/app/api), schémas Pydan
 | `/assets` | Import `/import/cyclonedx`, liste/stats/détail, profil/calcul de scoring |
 | `/findings` | Liste/stats, `/match/run`, profil/calcul de scoring ; détails inclus dans les réponses de liste |
 | `/scoring` | Profils nommés, presets, clonage/activation, runs/jobs/annulation, comparaisons, résumés/items/historique, endpoints historiques de scoring |
+| `/products` | `POST /resolution/run`, avec `asset_id` optionnel ; crée un run et une décision append-only par composant |
 
-Les profils/stats/listes concernés supportent un contexte de preset ; se référer aux signatures réelles plutôt qu’à une ancienne liste d’endpoints. Aucun endpoint Product Resolver, scanner CSV, Evidence générique ou LLM n’existe encore.
+Les profils/stats/listes concernés supportent un contexte de preset ; se référer aux signatures réelles plutôt qu’à une ancienne liste d’endpoints. Scanner CSV, Evidence générique et LLM n’existent pas encore.
 
 ## Développement et vérification
 

@@ -1,6 +1,6 @@
 # Product Resolution, CPE et applicabilité des versions
 
-Direction canonique du 2026-09-05. Le code actuel est décrit en fin de document ; aucune des nouvelles entités ci-dessous n’est présumée créée.
+Direction canonique du 2026-09-05. Product Resolution v0 est présent de façon additive ; le reste du modèle cible demeure directionnel.
 
 ## Le pivot est Product
 
@@ -18,7 +18,11 @@ Exemples d’identités : `microsoft/sql_server`, `apache/tomcat`, `postgresql/p
 
 **CPE est externe et optionnel.** Séparer `internal_product_identity`, `official_cpe_binding` et `derived_cpe_name`. Un nom CPE dérivé n’est pas un binding officiel. Le dictionnaire NVD peut contenir absences, doublons, incohérences, dépréciations, erreurs ou noms mal formés. L’absence du dictionnaire n’interdit ni l’existence du Product ni sa résolution. Conserver les CPE comme interopérabilité et evidence, pas comme clé conceptuelle.
 
-## Workflow souhaité
+## Workflow v0 et évolution souhaitée
+
+Le v0 implémenté s’arrête volontairement aux trois premiers signaux déterministes : alias raw validé, alias/nom canonique normalisé de façon prudente, et binding CPE/purl explicitement catalogué. Il retourne `resolved`, `unknown` ou `ambiguous`, sans tie-break sur conflit. Les décisions persistent le snapshot de composant, candidats/signes versionnés, module, configuration et empreintes catalogue. La confiance 100/75 est une indication heuristique, pas une calibration.
+
+L’évolution souhaitée est :
 
 1. Exact alias match.
 2. Normalized string match.
@@ -47,6 +51,8 @@ Conserver toujours le texte original et sa source. Exemple : « 9.0.0.M1 through
 Prévoir SemVer, versions éditeurs, build numbers, Cisco-like, Java-like et formats non standards. Un format ou une famille non supportés doit pouvoir rendre `unknown`. Un AST pourra représenter les contraintes composées ; sa forme et les comparateurs sont des travaux futurs, pas un simple renommage des colonnes actuelles.
 
 ## Ce qui existe réellement
+
+[models/product.py](../src/backend/app/models/product.py) ajoute `Product`, aliases, bindings, runs et décisions de résolution ; [product_resolution.py](../src/backend/app/services/product_resolution.py) porte le resolver pur et [product_resolution_service.py](../src/backend/app/services/product_resolution_service.py) son orchestration. Le catalogue de démonstration et le corpus de benchmark sont distincts sous [samples/evaluation/product_resolution_v0](../samples/evaluation/product_resolution_v0/). La migration additive est `d9e0f1a2b3c4`.
 
 [cpe.py](../src/backend/app/services/cpe.py) contient un parseur CPE 2.3/URI partiel, quelques aliases Windows en code et `VersionMatcher` : exact, équivalence numérique prudente, bornes inclusives/exclusives et wildcard. Le comparateur de ranges tokenize chiffres/lettres et les compare ; il ne sélectionne pas de famille de versions et n’expose pas `unknown` comme troisième résultat.
 
