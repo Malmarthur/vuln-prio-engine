@@ -24,7 +24,7 @@ Le socle historique est déjà avancé. L’objectif est de démontrer le cœur 
 | NVD / EPSS / KEV / EUVD | ✅ Connecteurs, normalisation, upserts, logs, scheduling | Robustesse/qualité continue ; pas d’affirmation de disponibilité externe vérifiée aujourd’hui |
 | Asset et inventory | ◐ UUID, contexte, raw et import CycloneDX JSON | Source records multisources, corrélation, autorité par attribut, CSV/JSON génériques |
 | Scanner CSV générique | ⬜ | Adapter d’observations scanner et evidence |
-| Product, alias/canonicalization store, resolver v0 | ◐ Product Resolution v0 câblé ; 🧪 aliases CPE Windows historiques | Validation PostgreSQL/Alembic et régressions complètes ; voir [PLAN.md](PLAN.md) |
+| Product, alias/canonicalization store, resolver v0 | ✅ Product Resolution v0 déterministe, persistant et évalué | Catalogue v0 volontairement réduit ; validation humaine/fuzzy/LLM hors périmètre |
 | Vulnerability | ◐ Agrégation multi-source sur CVE obligatoire | Identité logique multi-identifiants/advisories non-CVE |
 | Contraintes de version et Applicability Engine | 🧪 Exact/range/wildcard déterministes existants | AST, familles, `unknown` et configurations composées |
 | Findings / consolidation | ◐ Findings persistés, upsert composant × vulnérabilité | Action Asset × Vulnerability, observations multiples, historique stable |
@@ -38,8 +38,8 @@ Le socle historique est déjà avancé. L’objectif est de démontrer le cœur 
 
 Une seule tranche est active à la fois. L’ordre ci-dessous exprime les dépendances, pas des chantiers parallèles :
 
-1. **Product Resolution v0 traçable — active** : identité Product, aliases/bindings optionnels, décisions explicables, API/UI et benchmark reproductible.
-2. **Product côté vulnérabilité et Applicability Engine** : relier les descriptions de vulnérabilités au même Product, introduire contraintes normalisées, familles de versions et résultat ternaire.
+1. ✅ **Product Resolution v0 traçable** : identité Product, aliases/bindings optionnels, décisions explicables, API/UI et benchmark reproductible. Validé le 2026-09-07 : migration aller-retour, 249 tests backend et 5 tests frontend.
+2. **Product côté vulnérabilité et Applicability Engine — active** : relier les descriptions de vulnérabilités au même Product, introduire contraintes normalisées, familles de versions et résultat ternaire.
 3. **Observations et consolidation des Findings** : importer un scanner CSV générique, conserver les observations multiples et consolider l’action Asset × Vulnerability.
 4. **Evidence et WHY NOW end-to-end** : relier résolution, applicabilité et facteurs de priorité dans une explication consultable.
 5. **Asset identity v0** : introduire les source records multisources et une corrélation prudente, seulement après stabilisation du modèle d’observation/evidence.

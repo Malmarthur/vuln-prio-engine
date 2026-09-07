@@ -52,7 +52,7 @@ Prévoir SemVer, versions éditeurs, build numbers, Cisco-like, Java-like et for
 
 ## Ce qui existe réellement
 
-[models/product.py](../src/backend/app/models/product.py) ajoute `Product`, aliases, bindings, runs et décisions de résolution ; [product_resolution.py](../src/backend/app/services/product_resolution.py) porte le resolver pur et [product_resolution_service.py](../src/backend/app/services/product_resolution_service.py) son orchestration. Le catalogue de démonstration et le corpus de benchmark sont distincts sous [samples/evaluation/product_resolution_v0](../samples/evaluation/product_resolution_v0/). La migration additive est `d9e0f1a2b3c4`.
+[models/product.py](../src/backend/app/models/product.py) ajoute `Product`, aliases, bindings, runs et décisions de résolution ; [product_resolution.py](../src/backend/app/services/product_resolution.py) porte le resolver pur et [product_resolution_service.py](../src/backend/app/services/product_resolution_service.py) son orchestration. Le catalogue opérationnel est embarqué avec le backend ; le catalogue de référence et le corpus de benchmark restent distincts sous [samples/evaluation/product_resolution_v0](../samples/evaluation/product_resolution_v0/). La migration additive est `d9e0f1a2b3c4`.
 
 [cpe.py](../src/backend/app/services/cpe.py) contient un parseur CPE 2.3/URI partiel, quelques aliases Windows en code et `VersionMatcher` : exact, équivalence numérique prudente, bornes inclusives/exclusives et wildcard. Le comparateur de ranges tokenize chiffres/lettres et les compare ; il ne sélectionne pas de famille de versions et n’expose pas `unknown` comme troisième résultat.
 
@@ -60,4 +60,4 @@ Prévoir SemVer, versions éditeurs, build numbers, Cisco-like, Java-like et for
 
 `VulnerabilityProduct` stocke les CPE et bornes issus de NVD ; il n’est ni un catalogue Product, ni un store d’aliases. L’extraction `aggregator._extract_products` aplatit les entrées `vulnerable` et ne représente pas l’ensemble des opérateurs, négations et prérequis d’environnement des configurations NVD. La source raw reste accessible, mais le matching n’est pas un évaluateur complet de ces configurations.
 
-Conserver ce matcher et ses tests comme baseline expérimentale. La [prochaine tranche](../PLAN.md) introduit la résolution produit traçable de manière additive ; elle ne remplace pas immédiatement l’applicabilité existante.
+Conserver ce matcher et ses tests comme baseline expérimentale. Product Resolution v0 a été validé de manière additive le 2026-09-07 ; la [tranche active](../PLAN.md) introduit maintenant l’applicabilité ternaire sans remplacer immédiatement ce matcher.

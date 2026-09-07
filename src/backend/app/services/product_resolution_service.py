@@ -17,7 +17,9 @@ from app.models.product import Product, ProductAlias, ProductExternalBinding, Pr
 from app.services.product_resolution import CANDIDATE_SCHEMA_VERSION, MODULE_ID, MODULE_VERSION, load_catalog, normalize_identifier, resolve_component
 
 logger = logging.getLogger(__name__)
-CATALOG_PATH = Path(__file__).parents[4] / "samples" / "evaluation" / "product_resolution_v0" / "catalog.json"
+# The operational catalog travels with the backend image.  The independent
+# annotated benchmark corpus remains under repository samples/.
+CATALOG_PATH = Path(__file__).parents[1] / "evaluation" / "data" / "product_catalog_v0.json"
 
 
 def _digest(value: Any) -> str:
@@ -30,17 +32,33 @@ async def ensure_catalog(session: AsyncSession) -> tuple[list[Any], str, dict[st
     existing = {item.key: item for item in (await session.execute(select(Product).where(Product.key.in_(keys)).options(selectinload(Product.aliases), selectinload(Product.bindings)))).scalars()}
     for entry in catalog:
         product = existing.get(entry.key)
+        is_new = product is None
         if product is None:
             product = Product(key=entry.key, vendor=entry.vendor, canonical_name=entry.canonical_name, product_metadata={"catalog_digest": digest})
             session.add(product)
             existing[entry.key] = product
             await session.flush()
         for alias in entry.aliases:
-            if not any(row.vendor_raw == alias["vendor"] and row.name_raw == alias["name"] and row.alias_type == "validated" for row in product.aliases):
-                product.aliases.append(ProductAlias(vendor_raw=alias["vendor"], name_raw=alias["name"], vendor_normalized=normalize_identifier(alias["vendor"]), name_normalized=normalize_identifier(alias["name"]), alias_type="validated", provenance={"catalog": "product_resolution_v0"}))
+            alias_exists = False if is_new else (await session.execute(
+                select(ProductAlias.id).where(
+                    ProductAlias.product_id == product.id,
+                    ProductAlias.vendor_raw == alias["vendor"],
+                    ProductAlias.name_raw == alias["name"],
+                    ProductAlias.alias_type == "validated",
+                ).limit(1)
+            )).scalar_one_or_none() is not None
+            if not alias_exists:
+                session.add(ProductAlias(product_id=product.id, vendor_raw=alias["vendor"], name_raw=alias["name"], vendor_normalized=normalize_identifier(alias["vendor"]), name_normalized=normalize_identifier(alias["name"]), alias_type="validated", provenance={"catalog": "product_resolution_v0"}))
         for binding in entry.bindings:
-            if not any(row.binding_type == binding["type"] and row.value_raw == binding["value"] for row in product.bindings):
-                product.bindings.append(ProductExternalBinding(binding_type=binding["type"], value_raw=binding["value"], normalized_fields={}, status="validated", provenance={"catalog": "product_resolution_v0"}))
+            binding_exists = False if is_new else (await session.execute(
+                select(ProductExternalBinding.id).where(
+                    ProductExternalBinding.product_id == product.id,
+                    ProductExternalBinding.binding_type == binding["type"],
+                    ProductExternalBinding.value_raw == binding["value"],
+                ).limit(1)
+            )).scalar_one_or_none() is not None
+            if not binding_exists:
+                session.add(ProductExternalBinding(product_id=product.id, binding_type=binding["type"], value_raw=binding["value"], normalized_fields={}, status="validated", provenance={"catalog": "product_resolution_v0"}))
     await session.flush()
     return catalog, digest, existing
 
@@ -64,7 +82,7 @@ async def run_product_resolution(session: AsyncSession, asset_id: UUID | None = 
         snap = component_snapshot(component, asset)
         input_value = snap["component"]
         result = resolve_component(input_value, catalog)
-        prior = (await session.execute(select(ProductResolutionDecision).where(ProductResolutionDecision.asset_component_id == component.id).order_by(ProductResolutionDecision.decided_at.desc()).limit(1))).scalar_one_or_none()
+        prior = (await session.execute(select(ProductResolutionDecision).where(ProductResolutionDecision.asset_component_id == component.id).order_by(ProductResolutionDecision.decided_at.desc(), ProductResolutionDecision.id.desc()).limit(1))).scalar_one_or_none()
         product = products.get(result.product_key) if result.product_key else None
         session.add(ProductResolutionDecision(run_id=run.id, asset_component_id=component.id, asset_id=asset.id, resolved_product_id=product.id if product else None, previous_decision_id=prior.id if prior else None, component_snapshot=snap, input_fingerprint=_digest(input_value), status=result.status, method=result.method, confidence=int(result.confidence) if result.confidence is not None else None, confidence_basis=result.confidence_basis, candidates={"schema_version": CANDIDATE_SCHEMA_VERSION, "items": result.candidates}, evidence={"schema_version": "product-resolution-evidence/v1", "signals": result.signals}, module_id=MODULE_ID, module_version=MODULE_VERSION, configuration=config, configuration_digest=run.configuration_digest, catalog_digest=catalog_sha256))
         counts[result.status] += 1
@@ -82,7 +100,7 @@ async def attach_latest_resolutions(session: AsyncSession, assets: list[Asset]) 
     if not component_ids:
         return
     # PostgreSQL DISTINCT ON selects a single latest record for each current component.
-    latest = (await session.execute(select(ProductResolutionDecision).where(ProductResolutionDecision.asset_component_id.in_(component_ids)).options(selectinload(ProductResolutionDecision.resolved_product)).order_by(ProductResolutionDecision.asset_component_id, ProductResolutionDecision.decided_at.desc()).distinct(ProductResolutionDecision.asset_component_id))).scalars().all()
+    latest = (await session.execute(select(ProductResolutionDecision).where(ProductResolutionDecision.asset_component_id.in_(component_ids)).options(selectinload(ProductResolutionDecision.resolved_product)).order_by(ProductResolutionDecision.asset_component_id, ProductResolutionDecision.decided_at.desc(), ProductResolutionDecision.id.desc()).distinct(ProductResolutionDecision.asset_component_id))).scalars().all()
     by_component = {decision.asset_component_id: decision for decision in latest}
     for asset in assets:
         for component in asset.components:

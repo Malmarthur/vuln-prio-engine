@@ -58,4 +58,4 @@ Le Module Registry décrira progressivement contrats, versions et configurations
 
 La phase 1 doit ajouter une première mesure end-to-end des incertitudes. Ne pas multiplier arbitrairement les confidences des étapes comme si elles étaient des probabilités indépendantes.
 
-Le premier module enregistré est `product_resolver` v0 : son runner produit exactitude des résolutions, coverage, faux matchs, taux `unknown`/`ambiguous` et top-k avec dénominateurs. Catalogue et corpus JSON distincts sont sous `samples/evaluation/product_resolution_v0/`; le rapport porte leurs digests. Voir [PLAN.md](../PLAN.md) pour les validations encore requises.
+Le premier module enregistré est `product_resolver` v0 : son runner produit exactitude des résolutions, coverage, faux matchs, taux `unknown`/`ambiguous` et top-k avec dénominateurs. Catalogue et corpus JSON distincts sont sous `samples/evaluation/product_resolution_v0/`; le rapport porte leurs digests. Le module a été validé avec la tranche v0 le 2026-09-07. Voir [PLAN.md](../PLAN.md) pour le prochain module Applicability Engine.

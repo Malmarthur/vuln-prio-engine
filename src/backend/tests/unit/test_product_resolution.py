@@ -3,9 +3,9 @@ from pathlib import Path
 from app.evaluation.product_resolution import run_product_resolution_benchmark
 from app.services.product_resolution import load_catalog, normalize_identifier, resolve_component
 
-ROOT = Path(__file__).parents[4]
-CATALOG = ROOT / "samples/evaluation/product_resolution_v0/catalog.json"
-CORPUS = ROOT / "samples/evaluation/product_resolution_v0/corpus.json"
+BACKEND_ROOT = Path(__file__).parents[2]
+CATALOG = BACKEND_ROOT / "app/evaluation/data/product_catalog_v0.json"
+CORPUS = BACKEND_ROOT / "tests/fixtures/product_resolution_v0_corpus.json"
 
 
 def test_normalizer_preserves_version_tokens_and_unifies_clear_separators():

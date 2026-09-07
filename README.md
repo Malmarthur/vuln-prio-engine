@@ -2,13 +2,13 @@
 
 VVLN construit une plateforme de vulnerability management centrée sur la réconciliation **Asset ↔ Product ↔ Vulnerability ↔ Finding ↔ Evidence**, puis sur une priorisation contextuelle explicable. Elle s’appuie sur les inventaires, scanners et sources de vulnérabilités existants. Le Research Lab historique reste sa couche d’expérimentation et d’évaluation.
 
-**État actuel :** prototype privé avec agrégation NVD/EPSS/KEV/EUVD, import d’assets CycloneDX, Product Resolution v0 déterministe, matching CPE/version, findings, scoring configurable à trois niveaux et espace de comparaison. La résolution asset multisource et l’Evidence générique de premier rang restent à construire. L’UI et plusieurs identifiants techniques utilisent encore le nom **VulnPrio**.
+**État actuel :** prototype privé avec agrégation NVD/EPSS/KEV/EUVD, import d’assets CycloneDX, Product Resolution v0 déterministe et validé, matching CPE/version, findings, scoring configurable à trois niveaux et espace de comparaison. L’Applicability Engine ternaire, la résolution asset multisource et l’Evidence générique de premier rang restent à construire. L’UI et plusieurs identifiants techniques utilisent encore le nom **VulnPrio**.
 
 ## Documentation de référence
 
 - [AGENTS.md](AGENTS.md) : point d’entrée des agents et règles de travail.
 - [ROADMAP.md](ROADMAP.md) : avancement réel, ordre des tranches du cœur et phases 0–6.
-- [PLAN.md](PLAN.md) : plan d’exécution de la tranche active Product Resolution v0.
+- [PLAN.md](PLAN.md) : plan d’exécution de la tranche active Applicability Engine v0.
 - [Vision produit](docs/VISION.md) : positionnement et direction future State/Capability graph.
 - [Architecture/domaine](docs/ARCHITECTURE.md), [Product/CPE et versions](docs/RESOLUTION.md), [assets/inventory](docs/INVENTORY.md).
 - [Architecture LLM](docs/LLM.md) et [Research Lab/évaluation](docs/EVALUATION.md).

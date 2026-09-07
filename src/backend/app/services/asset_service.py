@@ -406,7 +406,7 @@ def _apply_metric_property(values: dict[str, str], prop: dict[str, Any]) -> None
 def _component_from_cyclonedx(asset_id: UUID, item: dict[str, Any]) -> AssetComponent:
     cpe = _extract_component_cpe(item)
     fields = cpe_fields(cpe)
-    vendor = item.get("publisher") or item.get("author") or fields["cpe_vendor"]
+    vendor = item.get("publisher") or item.get("author") or item.get("vendor") or fields["cpe_vendor"]
     product = item.get("name") or fields["cpe_product"]
     version = item.get("version") or fields["cpe_version"]
     return AssetComponent(
