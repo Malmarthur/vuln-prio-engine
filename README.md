@@ -1,5 +1,8 @@
 # Harmonia
 
+[![Prototype checks](https://github.com/Malmarthur/vuln-prio-engine/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Malmarthur/vuln-prio-engine/actions/workflows/ci.yml)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+
 **An integrated lab for understanding how scoring strategies change remediation priorities.**
 
 Harmonia combines vulnerability intelligence with asset context, computes scores at three levels, then compares profiles and scenarios: distributions, rank changes, priority transitions and divergences. The project then explores Asset ↔ Product ↔ Vulnerability ↔ Finding reconciliation, starting with a first traceable product resolver.
