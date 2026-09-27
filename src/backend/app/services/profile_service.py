@@ -310,6 +310,10 @@ async def save_active_profile_config(session: AsyncSession, stage: str, config: 
     preset, context = await get_active_preset(session)
     current = await get_active_profile(session, stage)
     validated = validate_stage_config(stage, config)
+    # Saving an unchanged configuration is a no-op: no new revision, no stale
+    # runs, and no editable clone of a built-in profile or preset.
+    if validated == validate_stage_config(stage, current.config):
+        return current
     if current.is_builtin:
         suffix = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
         current = ScoringProfile(

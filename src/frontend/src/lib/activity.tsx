@@ -113,11 +113,17 @@ export function tasksFromActivity(activity: Activity, now = Date.now()): Task[] 
   return [...activity.jobs.map(jobTask), ...ingestions];
 }
 
-/** Tasks that were active in `previous` and are finished in `next`. */
+/**
+ * Tasks that finished since the previous poll: either seen active before, or
+ * new and already finished (short tasks such as a KEV ingestion can start and
+ * end between two polls). Callers skip this on the very first poll so work
+ * finished before the page opened is not reported.
+ */
 export function finishedTransitions(previous: Map<string, TaskStatus>, next: Task[]): Task[] {
   return next.filter((task) => {
+    if (isActive(task)) return false;
     const before = previous.get(task.key);
-    return before !== undefined && (before === 'queued' || before === 'running') && !isActive(task);
+    return before === undefined || before === 'queued' || before === 'running';
   });
 }
 

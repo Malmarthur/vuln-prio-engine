@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useActivity, useActivityFinished } from '../lib/activity';
+import { useActivity } from '../lib/activity';
 import { getErrorMessage } from '../lib/utils';
 import Pagination from './Pagination';
 import StatusTag, { type StatusTone } from './StatusTag';
@@ -132,14 +132,15 @@ export default function SettingsPanel() {
   // Live status comes from the global activity feed: whenever an ingestion
   // starts, progresses or ends, refresh the source table (and the log on end).
   const { tasks, refresh: refreshActivity } = useActivity();
-  const ingestionSignature = tasks
-    .filter((task) => task.kind === 'ingestion')
-    .map((task) => `${task.id}:${task.status}:${Math.round(task.progress ?? 0)}`)
-    .join('|');
+  const ingestions = tasks.filter((task) => task.kind === 'ingestion');
+  const progressSignature = ingestions.map((task) => `${task.id}:${task.status}:${Math.round(task.progress ?? 0)}`).join('|');
+  const statusSignature = ingestions.map((task) => `${task.id}:${task.status}`).join('|');
   useEffect(() => {
     fetchIngestionStatus().then(setStatus).catch(console.error);
-  }, [ingestionSignature]);
-  useActivityFinished((task) => task.kind === 'ingestion', () => refreshLogs());
+  }, [progressSignature]);
+  useEffect(() => {
+    fetchIngestionLogs({ page: logPage, per_page: 20 }).then(setLogs).catch(console.error);
+  }, [statusSignature]);
 
   const handleSaveSetting = async (key: string, value: number | string) => {
     try {

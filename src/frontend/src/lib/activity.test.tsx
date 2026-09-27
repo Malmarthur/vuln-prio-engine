@@ -33,10 +33,16 @@ describe('activity helpers', () => {
     expect(tasks.map((task) => [task.key, task.status])).toEqual([['job:job-1', 'queued'], ['ingestion:i1', 'running']]);
   });
 
-  it('reports only tasks that were active before', () => {
+  it('reports tasks that finished since the previous poll', () => {
     const previous = new Map([['job:job-1', 'running' as const], ['job:job-2', 'completed' as const]]);
-    const next = tasksFromActivity(activity([job({ status: 'completed' }), job({ id: 'job-2', status: 'completed' }), job({ id: 'job-3', status: 'failed' })]));
-    expect(finishedTransitions(previous, next).map((task) => task.id)).toEqual(['job-1']);
+    const next = tasksFromActivity(activity([
+      job({ status: 'completed' }),
+      job({ id: 'job-2', status: 'completed' }),
+      job({ id: 'job-3', status: 'failed' }),
+      job({ id: 'job-4', status: 'running' }),
+    ]));
+    // job-3 started and failed between two polls; job-2 was already known as done.
+    expect(finishedTransitions(previous, next).map((task) => task.id)).toEqual(['job-1', 'job-3']);
   });
 });
 
