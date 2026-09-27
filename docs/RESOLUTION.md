@@ -1,63 +1,25 @@
-# Product Resolution, CPE et applicabilité des versions
+# Product Resolution et limites de l’applicabilité
 
-Direction canonique du 2026-09-05. Product Resolution v0 est présent de façon additive ; le reste du modèle cible demeure directionnel.
+## Product Resolution v0 — implémenté
 
-## Le pivot est Product
+`Product` est une identité logicielle interne stable, indépendante de sa version observée et de ses CPE éventuels. Un produit peut être résolu sans CPE officiel. Les modèles [product.py](../src/backend/app/models/product.py) persistent Product, aliases, bindings, runs et décisions ; migration additive `d9e0f1a2b3c4`.
 
-```text
-CVE / advisory → extraction vendor/product/component → Product Resolver
-                                                      ↓
-                                               Canonical Product
-                                                      ↑
-Inventory → raw software name → Product Resolver
+Le [resolver pur](../src/backend/app/services/product_resolution.py) compare alias exact, alias/nom canonique normalisé prudemment, puis bindings CPE/purl explicitement catalogués. Il conserve tous les candidats plausibles et retourne `resolved`, `unknown` ou `ambiguous`, sans départager silencieusement un conflit. Les confiances 100/75 sont des niveaux heuristiques, pas des probabilités calibrées.
 
-Canonical Product + version observée + contraintes → Applicability Engine
-```
+L’[orchestration](../src/backend/app/services/product_resolution_service.py) charge le catalogue embarqué, persiste une décision par composant avec snapshot, signaux, candidats, versions et empreintes de configuration/catalogue. Les décisions sont ajoutées à chaque run et survivent au remplacement du composant grâce à leur snapshot. Aucun fuzzy matching, validation humaine ou appel LLM n’est implémenté.
 
-Exemples d’identités : `microsoft/sql_server`, `apache/tomcat`, `postgresql/postgresql`. Le modèle possède un ID interne stable, vendor, nom canonique, aliases, metadata/composants, identifiants externes et bindings CPE. Distinguer identité produit et version observée.
+Le catalogue opérationnel embarque seulement quatre identités (dont des produits fictifs) : ce v0 démontre le contrat et la traçabilité, pas une couverture logicielle universelle. Le [corpus annoté](../samples/evaluation/product_resolution_v0/) contient cinq cas ; voir [évaluation](EVALUATION.md).
 
-**CPE est externe et optionnel.** Séparer `internal_product_identity`, `official_cpe_binding` et `derived_cpe_name`. Un nom CPE dérivé n’est pas un binding officiel. Le dictionnaire NVD peut contenir absences, doublons, incohérences, dépréciations, erreurs ou noms mal formés. L’absence du dictionnaire n’interdit ni l’existence du Product ni sa résolution. Conserver les CPE comme interopérabilité et evidence, pas comme clé conceptuelle.
+## Matching historique — expérimental et indépendant
 
-## Workflow v0 et évolution souhaitée
+[VersionMatcher et CPE](../src/backend/app/services/cpe.py) gèrent parseur CPE partiel, aliases Windows, exact/range/wildcard et quelques équivalences numériques. Le comparateur tokenize chiffres/lettres ; il ne choisit pas une famille de versions et n’expose pas `unknown`.
 
-Le v0 implémenté s’arrête volontairement aux trois premiers signaux déterministes : alias raw validé, alias/nom canonique normalisé de façon prudente, et binding CPE/purl explicitement catalogué. Il retourne `resolved`, `unknown` ou `ambiguous`, sans tie-break sur conflit. Les décisions persistent le snapshot de composant, candidats/signes versionnés, module, configuration et empreintes catalogue. La confiance 100/75 est une indication heuristique, pas une calibration.
+Le [service findings](../src/backend/app/services/finding_service.py) sélectionne par CPE part/vendor/product en SQL, évalue avec Polars et upsert les matchs composant × vulnérabilité. Les composants sans champs CPE exploitables sont exclus ; les candidats perdants et non-matchs ne sont pas persistés. Ses niveaux de confiance 100/98/95/90/65 sont également heuristiques.
 
-L’évolution souhaitée est :
+`VulnerabilityProduct` représente les CPE/bornes projetés depuis NVD, pas un Product canonique. L’extraction NVD aplatit les entrées `vulnerable` et ne conserve pas toute la sémantique AND/OR, négations ou prérequis environnementaux. Les sources raw restent consultables. **Une résolution Product réussie ne démontre donc pas l’applicabilité d’une CVE et ne remplace pas ce matcher.**
 
-1. Exact alias match.
-2. Normalized string match.
-3. External ID / binding CPE connu.
-4. Fuzzy candidate retrieval.
-5. Si nécessaire, ranking/désambiguïsation LLM d’un petit ensemble de candidats.
-6. Sans candidat plausible, proposition d’une nouvelle identité produit.
-7. Validation humaine selon risque, seuil et confiance.
-8. Mémorisation de l’alias/règle validée avec sa provenance.
+## Applicability Engine — prévu, non commencé
 
-Ne jamais forcer un match. Conserver `unknown`, `ambiguous`, candidats, scores et evidence ; versionner resolver et configuration ; permettre replay et validations humaines auditables. Un alias ambigu ne devient pas une règle globale silencieuse. La logique exacte des seuils sera testée plutôt que déclarée certaine.
+La cible est : Product canonique + version observée + contrainte normalisée/versionnée → comparateur par famille → `applicable` / `not_applicable` / `unknown`, avec texte source et justification. Les bindings côté vulnérabilité, l’AST, les familles et les configurations composées restent à implémenter. Un format non supporté doit pouvoir rester inconnu.
 
-Évaluer precision/recall, top-1/top-k accuracy, taux d’auto-résolution, de validation humaine, faux matchs, non résolus et régressions entre versions. Les jeux annotés doivent inclure produits sans CPE, homonymes, noms bruités et absence de candidat correct.
-
-## Versions : extraction séparée de la décision
-
-```text
-raw version statement → parser ou extraction LLM
-                      → normalized constraint AST
-                      → version-family comparator
-                      → applicable / not applicable / unknown
-```
-
-Conserver toujours le texte original et sa source. Exemple : « 9.0.0.M1 through 9.0.80 » peut être extrait en bornes inclusives `9.0.0.M1` et `9.0.80`. Le résultat de comparaison doit venir d’un moteur déterministe compétent pour cette famille, pas du LLM.
-
-Prévoir SemVer, versions éditeurs, build numbers, Cisco-like, Java-like et formats non standards. Un format ou une famille non supportés doit pouvoir rendre `unknown`. Un AST pourra représenter les contraintes composées ; sa forme et les comparateurs sont des travaux futurs, pas un simple renommage des colonnes actuelles.
-
-## Ce qui existe réellement
-
-[models/product.py](../src/backend/app/models/product.py) ajoute `Product`, aliases, bindings, runs et décisions de résolution ; [product_resolution.py](../src/backend/app/services/product_resolution.py) porte le resolver pur et [product_resolution_service.py](../src/backend/app/services/product_resolution_service.py) son orchestration. Le catalogue opérationnel est embarqué avec le backend ; le catalogue de référence et le corpus de benchmark restent distincts sous [samples/evaluation/product_resolution_v0](../samples/evaluation/product_resolution_v0/). La migration additive est `d9e0f1a2b3c4`.
-
-[cpe.py](../src/backend/app/services/cpe.py) contient un parseur CPE 2.3/URI partiel, quelques aliases Windows en code et `VersionMatcher` : exact, équivalence numérique prudente, bornes inclusives/exclusives et wildcard. Le comparateur de ranges tokenize chiffres/lettres et les compare ; il ne sélectionne pas de famille de versions et n’expose pas `unknown` comme troisième résultat.
-
-[finding_service.py](../src/backend/app/services/finding_service.py) sélectionne les candidats par CPE part/vendor/product en SQL, évalue et déduplique avec Polars, puis upsert les matchs. Les composants sans champs CPE résolus sont exclus. Les non-matchs/candidats perdants ne sont pas persistés. Les valeurs 100/98/95/90/65 sont des niveaux heuristiques, pas des probabilités calibrées.
-
-`VulnerabilityProduct` stocke les CPE et bornes issus de NVD ; il n’est ni un catalogue Product, ni un store d’aliases. L’extraction `aggregator._extract_products` aplatit les entrées `vulnerable` et ne représente pas l’ensemble des opérateurs, négations et prérequis d’environnement des configurations NVD. La source raw reste accessible, mais le matching n’est pas un évaluateur complet de ces configurations.
-
-Conserver ce matcher et ses tests comme baseline expérimentale. Product Resolution v0 a été validé de manière additive le 2026-09-07 ; la [tranche active](../PLAN.md) introduit maintenant l’applicabilité ternaire sans remplacer immédiatement ce matcher.
+Cette évolution demandera une nouvelle tranche explicitement autorisée ; le [plan actif](../PLAN.md) concerne la préparation du prototype. Les validations récentes sont dans [READINESS](READINESS.md).

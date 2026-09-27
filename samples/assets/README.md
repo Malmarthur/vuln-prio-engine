@@ -1,6 +1,6 @@
 # Sample CycloneDX Assets
 
-This directory contains 50 synthetic CycloneDX JSON BOMs for VVLN demos (the current UI is still named VulnPrio).
+This directory contains 50 synthetic CycloneDX JSON BOMs for Harmonia demos.
 Each BOM represents one asset, and each `components[]` entry represents installed software with a CPE identifier.
 
 The catalog models a realistic enterprise inventory: internet edge systems, core business apps, identity, CI/CD, databases, monitoring, collaboration, end-user laptops, and a few segmented operational systems.
@@ -68,7 +68,7 @@ node samples/assets/generate-sample-assets.mjs
 
 ## Usage
 
-Open the VulnPrio frontend, go to `Assets`, and import these files one by one.
+Open the Harmonia frontend, go to `Assets`, and import these files one by one.
 After importing, run asset scoring, finding matching, and finding scoring from the dashboard.
 
 These assets intentionally use well-known CPEs that are likely to match a populated NVD dataset.

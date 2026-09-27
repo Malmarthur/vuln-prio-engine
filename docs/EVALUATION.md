@@ -1,6 +1,6 @@
 # Research Lab et évaluation
 
-Le laboratoire historique est la future couche d’évaluation de VVLN, à préserver. État vérifié par lecture du code le 2026-09-05 ; les résultats d’anciennes sessions conservés en archive ne sont pas des tests relancés aujourd’hui.
+Le laboratoire est intégré à Harmonia et constitue le parcours principal de démonstration. Le [guide de démonstration](DEMO.md) permet de comparer les stratégies sur des données synthétiques ; [READINESS](READINESS.md) consigne les validations récentes.
 
 ## Où se trouve le Lab actuel
 
@@ -53,9 +53,9 @@ Le Module Registry décrira progressivement contrats, versions et configurations
 | Product Resolver | Precision/recall, top-1/top-k, auto-résolution, revue humaine, faux matchs, non résolus, régressions |
 | Applicabilité | Décisions correctes par famille/version/borne, coverage, unknown, faux positifs/négatifs |
 | Consolidation | Observations correctement regroupées, faux merges/splits, conservation d’evidence |
-| Priorité | Baseline CVSS vs VVLN, backlog actionnable, pertinence métier et explications, deltas existants |
+| Priorité | Baseline CVSS vs Harmonia, backlog actionnable, pertinence métier et explications, deltas existants |
 | ML/LLM/prompts | Qualité, calibration, coverage, coût, latence, régressions et politique de données |
 
 La phase 1 doit ajouter une première mesure end-to-end des incertitudes. Ne pas multiplier arbitrairement les confidences des étapes comme si elles étaient des probabilités indépendantes.
 
-Le premier module enregistré est `product_resolver` v0 : son runner produit exactitude des résolutions, coverage, faux matchs, taux `unknown`/`ambiguous` et top-k avec dénominateurs. Catalogue et corpus JSON distincts sont sous `samples/evaluation/product_resolution_v0/`; le rapport porte leurs digests. Le module a été validé avec la tranche v0 le 2026-09-07. Voir [PLAN.md](../PLAN.md) pour le prochain module Applicability Engine.
+Le premier module enregistré est `product_resolver` v0 : son runner produit exactitude des résolutions, coverage, faux matchs, taux `unknown`/`ambiguous` et top-k avec dénominateurs. Catalogue et corpus JSON distincts sont sous `samples/evaluation/product_resolution_v0/`; le rapport porte leurs digests. Le corpus actuel est minuscule : ses métriques ne démontrent aucune généralisation à des inventaires réels. L’Applicability Engine n’est pas commencé.

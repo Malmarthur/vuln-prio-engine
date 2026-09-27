@@ -1,6 +1,6 @@
 # Architecture et domaine canoniques
 
-Cible du 2026-09-05, non description d’un schéma déjà migré. [AUDIT.md](AUDIT.md) relie les écarts au code.
+État du prototype et frontières de la cible. Les colonnes « actuelle » ci-dessous décrivent le code ; le flux complet reste une direction, pas un pipeline déjà disponible.
 
 ## Flux et frontières
 
@@ -14,7 +14,7 @@ Transversal : Evidence / provenance, versions, replay,
               Module Registry, Evaluation / Research Lab
 ```
 
-Les adapters traduisent Qualys, Tenable, ServiceNow, GLPI, NVD, CycloneDX, etc. vers des représentations internes stables. Les formats externes ne doivent pas définir le domaine. Ce découpage est fonctionnel : conserver le monolithe actuel tant qu’une séparation de déploiement n’est pas justifiée. Le « graphe » conceptuel n’impose pas une nouvelle base graphe ; PostgreSQL peut porter les relations.
+Les adapters futurs traduiraient Qualys, Tenable, ServiceNow ou GLPI ; les entrées actuelles sont NVD/EPSS/KEV/EUVD et CycloneDX. Ils traduisent les données vers des représentations internes stables. Les formats externes ne doivent pas définir le domaine. Ce découpage est fonctionnel : conserver le monolithe actuel tant qu’une séparation de déploiement n’est pas justifiée. Le « graphe » conceptuel n’impose pas une nouvelle base graphe ; PostgreSQL peut porter les relations.
 
 ## Concepts distincts
 
@@ -51,7 +51,7 @@ Decision {
 }
 ```
 
-Les statuts doivent distinguer résolu, unknown et ambiguous ; l’applicabilité doit distinguer applicable, non applicable et unknown. La forme exacte des contrats et leur stockage restent à implémenter. Une confiance heuristique n’est pas automatiquement une probabilité calibrée. Conserver les désaccords et raisons d’abstention.
+Les statuts doivent distinguer résolu, unknown et ambiguous ; l’applicabilité doit distinguer applicable, non applicable et unknown. Le contrat Product v0 existe ; sa généralisation et le contrat d’applicabilité restent à implémenter. Une confiance heuristique n’est pas automatiquement une probabilité calibrée. Conserver les désaccords et raisons d’abstention.
 
 Questions d’acceptation : pourquoi Tomcat 9.0.80 sur cet asset ? Pourquoi cette CVE est-elle applicable ? Pourquoi ce finding est-il critique maintenant ? Une chaîne de liens explicable doit permettre de répondre, sans seulement afficher un booléen.
 
@@ -66,3 +66,9 @@ Le scoring actuel constitue une première stratégie : vulnérabilité puis asse
 ## Évolution incrémentale
 
 Les identités actuelles, pipelines et API restent utiles. Ajouter les nouvelles abstractions à côté, évaluer sur fixtures figées puis raccorder une tranche prouvée. Ne pas renommer `VulnerabilityProduct` en Product pour masquer la différence ; ne pas convertir sans analyse les findings existants ou effacer leurs scores. Détails : [inventory](INVENTORY.md), [résolution](RESOLUTION.md), [LLM](LLM.md), [évaluation](EVALUATION.md), [roadmap](../ROADMAP.md) et [plan actif](../PLAN.md).
+
+## Invariants de l’ingestion existante
+
+Les normalizers Polars sérialisent les champs complexes en JSON avant leur conversion pour l’insert. `SOURCE_OWNED_COLUMNS` limite les mises à jour de chaque source ; le merge JSONB de `sources_raw` et le fallback summary KEV préservent les données des autres sources. Ces blobs conservent la dernière valeur par source, pas un historique immutable (EPSS y conserve une représentation minimale).
+
+Le runner NVD découpe les longues fenêtres et mémorise le début du sync réussi pour l’incrémental. EUVD est paginé ; les erreurs de source sont isolées par le runner. Les timestamps SQLAlchemy sont timezone-aware. Le scheduler et les jobs restent dans le processus FastAPI ; les logs texte opérationnels ne sont pas un audit métier.

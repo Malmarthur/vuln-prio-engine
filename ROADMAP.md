@@ -1,75 +1,20 @@
-# VVLN — roadmap produit
+# Roadmap — état du prototype
 
-Mise à jour le 2026-09-05. Cette roadmap décrit l’avancement global et l’ordre des phases. Le travail actif est détaillé dans [PLAN.md](PLAN.md). Les anciennes phases 1–15 sont conservées dans [l’archive](docs/history/PRE_REALIGNMENT.md) et ne guident plus le développement.
+Mise à jour : 2026-09-27. La préparation GitHub/CV est terminée pour revue locale ; le [plan actif](PLAN.md) consigne sa clôture et les décisions restantes. Les validations actuelles sont dans [READINESS](docs/READINESS.md).
 
-Statuts : ✅ Implémenté dans le code / terminé pour une tâche documentaire ; ◐ Partiel ; 🧪 Expérimental / implémentation Lab ; ⬜ Non implémenté. « Implémenté » ne signifie pas validé en production. [AUDIT.md](docs/AUDIT.md) fournit les preuves par fichier ; [VISION.md](docs/VISION.md) fixe la direction produit.
+| Capacité | État |
+|---|---|
+| Ingestion NVD, EPSS, KEV, EUVD | Implémentée ; disponibilité des services externes non certifiée |
+| Lab intégré : scoring vulnerability/asset/finding, profils révisés, presets, runs et Compare | Implémenté ; parcours principal de démonstration |
+| Import CycloneDX, assets/composants et findings | Implémenté ; réimport remplaçant les composants, sans continuité complète d’historique |
+| Product Resolution v0 | Implémenté ; catalogue réduit, décisions persistées, unknown/ambiguous et benchmark versionné |
+| Matching CPE/version | Expérimental ; pas d’évaluation complète des configurations NVD |
+| Applicability Engine ternaire | Prévu, non commencé |
+| Consolidation multiscanner, identité asset multisource et Evidence générique | Non implémentés |
+| LLM, graphe d’attaque, fonctions commerciales | Non implémentés ; hors périmètre de cette préparation |
 
-## Réalignement documentaire — terminé ✅
+Prochaine décision : revue du prototype, licence et identité publique, puis autorisation explicite de publication. Aucun renommage n’est appliqué.
 
-- ✅ Inventorier code, modèles/migrations, pipelines, Lab, interfaces, tests, scripts et documentation, y compris les fichiers ignorés et le contexte local des agents.
-- ✅ Classer les documents A–D et expliciter les contradictions OLD/CURRENT dans l’audit.
-- ✅ Remplacer AGENTS.md, consolider CLAUDE.md et rendre les documents de pilotage visibles par Git.
-- ✅ Écrire la vision, le domaine, la résolution Product/CPE, les assets, la couche LLM et l’évaluation ; intégrer le futur attack graph à la vision.
-- ✅ Conserver les anciens documents et le Lab ; aucune migration de code métier/DB/UI pendant cette passe.
-- ✅ Séparer cette roadmap durable du plan d’exécution de la prochaine tranche.
+L’évolution produit envisagée est : Product côté vulnérabilité/applicabilité → observations et consolidation → evidence de bout en bout → identité asset multisource. Cet ordre sera réévalué selon les preuves du Lab et les retours terrain. Il ne constitue pas une liste de fonctionnalités promises ou un chantier actif.
 
-Validation documentaire : contrôle des liens locaux actifs, des statuts et références au code, des règles Git et du diff. Voir l’audit pour la portée exacte ; aucun résultat historique de test n’est repris comme exécution actuelle.
-
-## Phase 0 — prototype technique privé : en cours
-
-Le socle historique est déjà avancé. L’objectif est de démontrer le cœur Asset ↔ Product ↔ Vulnerability ↔ Finding ↔ Evidence sans repartir de zéro.
-
-| Objectif | Statut actuel | Reste réel |
-|---|---|---|
-| NVD / EPSS / KEV / EUVD | ✅ Connecteurs, normalisation, upserts, logs, scheduling | Robustesse/qualité continue ; pas d’affirmation de disponibilité externe vérifiée aujourd’hui |
-| Asset et inventory | ◐ UUID, contexte, raw et import CycloneDX JSON | Source records multisources, corrélation, autorité par attribut, CSV/JSON génériques |
-| Scanner CSV générique | ⬜ | Adapter d’observations scanner et evidence |
-| Product, alias/canonicalization store, resolver v0 | ✅ Product Resolution v0 déterministe, persistant et évalué | Catalogue v0 volontairement réduit ; validation humaine/fuzzy/LLM hors périmètre |
-| Vulnerability | ◐ Agrégation multi-source sur CVE obligatoire | Identité logique multi-identifiants/advisories non-CVE |
-| Contraintes de version et Applicability Engine | 🧪 Exact/range/wildcard déterministes existants | AST, familles, `unknown` et configurations composées |
-| Findings / consolidation | ◐ Findings persistés, upsert composant × vulnérabilité | Action Asset × Vulnerability, observations multiples, historique stable |
-| Evidence/provenance | ◐ Raw par source/composant et métadonnées de match/scoring | Evidence et décisions de premier rang, versions et liens durables |
-| Première stratégie de priorisation | ✅ Scores vulnérabilité/asset/finding et profils configurables | Enrichir contexte et explication, sans reconstruire ce qui existe |
-| UI minimale liste/détail/WHY PRIORITY | ◐ Listes, détails, filtres, score et match visibles | Chaîne explicite de raisons et evidence |
-| Dataset de test reproductible | ◐ Tests et 50 BOM synthétiques déterministes | Corpus figés annotés, manifestes/versions, résultats attendus d’applicabilité |
-| Interface commune, Module Registry, benchmark par module | ⬜ ; 🧪 runs/comparaisons scoring réutilisables | Contrat générique, registry et harness reproductible |
-
-### Ordre des tranches du cœur
-
-Une seule tranche est active à la fois. L’ordre ci-dessous exprime les dépendances, pas des chantiers parallèles :
-
-1. ✅ **Product Resolution v0 traçable** : identité Product, aliases/bindings optionnels, décisions explicables, API/UI et benchmark reproductible. Validé le 2026-09-07 : migration aller-retour, 249 tests backend et 5 tests frontend.
-2. **Product côté vulnérabilité et Applicability Engine — active** : relier les descriptions de vulnérabilités au même Product, introduire contraintes normalisées, familles de versions et résultat ternaire.
-3. **Observations et consolidation des Findings** : importer un scanner CSV générique, conserver les observations multiples et consolider l’action Asset × Vulnerability.
-4. **Evidence et WHY NOW end-to-end** : relier résolution, applicabilité et facteurs de priorité dans une explication consultable.
-5. **Asset identity v0** : introduire les source records multisources et une corrélation prudente, seulement après stabilisation du modèle d’observation/evidence.
-
-Les tranches 2–5 seront revalidées à la fin de chaque tranche précédente. Leur ordre peut évoluer sur preuve issue du code, du Lab ou des utilisateurs ; leur périmètre détaillé n’est pas encore un engagement d’implémentation.
-
-## Phase 1 — démonstrateur crédible
-
-Montrer une transformation mesurable : raw observations → résolution et consolidation → findings uniques → contexte et priorisation → petit backlog actionnable.
-
-Acquis : UI Compare, profils et métriques de classement. Restent notamment evidence visible, confidence du resolver, `unknown`/`ambiguous`, validation humaine, comparaison évaluée CVSS baseline vs VVLN, precision/recall/calibration/coverage/coût/régressions et première mesure end-to-end des incertitudes.
-
-## Phase 2 — validation terrain
-
-Conduire des entretiens avec des praticiens du vulnerability management et mesurer leur problème réel. Aucune preuve d’entretiens n’est présente dans le checkout ; le statut terrain devra venir d’éléments externes explicites, pas être inféré du code.
-
-## Phase 3 — design partner
-
-Valider le cœur sur un environnement réel avec un connecteur inventory, un connecteur scanner, sécurité minimale, import/export et auditabilité. Ne pas multiplier les connecteurs avant cette preuve.
-
-## Phase 4 — V1 commercialisable
-
-Après validation de la valeur : RBAC, SSO, audit logs, isolation tenant, secrets, rétention, monitoring, backups, API stabilisée, onboarding, DPA, pentest et autres exigences d’exploitation. L’API REST locale actuelle ne constitue pas cette préparation commerciale.
-
-## Phase 5 — Attack Path Intelligence
-
-Construire le State/Capability graph, les préconditions/postconditions, les contrôles et les chemins. ATT&CK reste une couche d’annotation. Cette phase dépend de la fiabilité du cœur Product/Asset/Finding.
-
-## Phase 6 — Defense Coverage & Recommendations
-
-Introduire DefenseCapability, DefenseDeployment et des recommandations contextualisées qui découlent du graphe et de l’evidence.
-
-Le repository reste privé. Le Research Lab accompagne chaque phase et fournit les preuves de qualité ; il n’est pas remplacé par l’UI produit.
+La validation terrain précède toute ambition commerciale. RBAC, isolation tenant, audit d’exploitation et robustesse de production restent à construire. Les graphes State/Capability et les recommandations défensives sont une direction lointaine, après validation du cœur.

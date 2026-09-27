@@ -22,7 +22,7 @@ export default function Layout({ activeTab, onTabChange, children }: LayoutProps
         <div className="mx-auto max-w-[108rem] px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <h1 className="shrink-0 text-xl font-bold text-gray-900 tracking-tight">
-              VulnPrio
+              Harmonia
             </h1>
             <nav className="ml-3 flex min-w-0 max-w-[68vw] space-x-1 overflow-x-auto sm:max-w-none">
               {TABS.map((t) => (

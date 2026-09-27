@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://vulnprio:vulnprio_dev@db:5432/vulnprio"
 
     # Application
-    app_name: str = "VulnPrio"
+    app_name: str = "Harmonia"
     debug: bool = False
 
     # NVD API key (optional — higher rate limits when provided)

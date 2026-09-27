@@ -210,3 +210,11 @@ marimo/_lsp/
 __marimo__/
 
 # Shared agent context and roadmap are versioned (AGENTS.md, CLAUDE.md, PLAN.md).
+
+# Local credentials and assistant settings
+.env.*
+!.env.example
+.claude/
+.codex/
+.agents/
+.DS_Store

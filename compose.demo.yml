@@ -1,0 +1,37 @@
+# Isolated, disposable demonstration. Never reads .env or uses the development DB.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+      POSTGRES_DB: vvln_demo
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d vvln_demo"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+  backend:
+    build: ./src/backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://demo:demo@db:5432/vvln_demo
+      TEST_DATABASE_URL: postgresql+asyncpg://demo:demo@db:5432/vvln_test
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./samples:/samples:ro
+    ports:
+      - "127.0.0.1:18000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+  frontend:
+    build: ./src/frontend
+    volumes:
+      - ./src/frontend:/app
+      - /app/node_modules
+    ports:
+      - "127.0.0.1:13000:3000"
+    depends_on:
+      - backend
