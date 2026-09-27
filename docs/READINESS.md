@@ -1,19 +1,19 @@
 # GitHub readiness — Harmonia
 
-Status as of **2026-09-27**. Local preparation for review; nothing has been published. Verified starting point: `feat/assets` and HEAD at `9cd5877`, clean tree, **13 commits ahead of main**. Preparation changes live on `codex/github-readiness`, without rewriting those commits.
+Status as of **2026-09-27**, before the repository is made public. The review started from `feat/assets` at `9cd5877` (13 commits ahead of main); later work (English documentation, license, interface redesign, background jobs and fixes) was added on top without rewriting history.
 
 ## Checks performed
 
 | Check | Result and scope |
 |---|---|
 | Docker install | Backend and frontend images built from this checkout; Python 3.12.14, PostgreSQL 16, Node 20. Frontend dependencies installed with `npm ci` |
-| Migrations on an empty database | Ten migrations: `upgrade head → downgrade base → upgrade head` succeeded on the disposable `vvln_demo` |
-| Latest migration with data | `d9e0f1a2b3c4 → c8d9e0f1a2b3 → head`; 6 vulnerabilities, 3 assets and 18 findings preserved. Product tables are dropped by this downgrade, as expected; resolution replayed after upgrade |
-| Backend | **249 tests passed** on `vvln_test`, a dedicated database; 8 SQLAlchemy deprecation warnings about `DISTINCT ON` |
-| Frontend | **5 tests / 3 files passed**, `npx tsc --noEmit` and `npm run build` succeeded; Browserslist warning about its outdated database |
+| Migrations on an empty database | Eleven migrations: `upgrade head → downgrade base → upgrade head` succeeded on the disposable `vvln_demo` |
+| Migrations with data | `d9e0f1a2b3c4 → c8d9e0f1a2b3 → head` on the demo data (6 vulnerabilities, 3 assets and 18 findings preserved; Product tables dropped by that downgrade, as expected). The latest migration `e0f1a2b3c4d5` (matching job kind) was rolled back and reapplied on a development database |
+| Backend | **255 tests passed** on `vvln_test`, a dedicated database; SQLAlchemy deprecation warnings about `DISTINCT ON` |
+| Frontend | **9 tests / 4 files passed**, `npx tsc --noEmit` and `npm run build` succeeded; Browserslist warning about its outdated database |
 | Display rename | API rebuilt, health test rerun; TypeScript/build rerun, `Harmonia` health response verified in the demo |
 | HTTP demo | Resolution of 3 components, 18 matches, a real comparison job over 3 presets, summaries/details accessible and consistent; replayed after the rollback |
-| Browser demo | Dashboard loaded, comparison launched from Compare and completed at 100 %, distributions/ranks displayed; real screenshots in the guide |
+| Browser checks | Every page at desktop and mobile widths after the redesign; background matching, scoring and ingestion followed live across page changes and a full reload; screenshots in the guide recaptured from the demo stack |
 | Product v0 benchmark | 5 cases: 2 resolved, 1 unknown, 2 ambiguous; accuracy 2/2 on expected resolutions, coverage 2/5, false matches 0/5. No evidence of generalization |
 
 Migrations and tests used the isolated `compose.demo.yml` stack, without reading the local `.env`, without any existing database and without real ingestion. The full migration test covers an empty database; the test with data covers the latest migration only. No older result is used as current evidence.
@@ -63,7 +63,7 @@ Demo data is explicitly synthetic; screenshots come only from this stack. `.env*
 
 Agent context files (`AGENTS.md`, `CLAUDE.md`, `PLAN.md`) are now local-only and ignored by Git. Their earlier versions remain in the history of the commits above.
 
-Bounded operational changes: frontend install from the lockfile, `make dev` applying migrations before startup, pgAdmin fallback aligned with the `.dev` example, isolated demo stack and CI. No change to business algorithms and no new migration. The display name Harmonia replaces the former titles; databases, packages, import keys and browser storage keep their identifiers for compatibility.
+Changes since the review: frontend install from the lockfile, `make dev` applying migrations before startup, isolated demo stack and CI; English documentation and AGPL-3.0 license; interface redesign with a single priority color scale; findings freshness banner; matching and scoring as tracked background jobs with a live activity feed (one additive migration); fixes for NVD ingestion (duplicate CPE rows, failure status lost on database errors), no-op profile saves and faster dashboard statistics. Scoring and matching algorithms are unchanged. The display name Harmonia replaces the former titles; databases, packages, import keys and browser storage keep their identifiers for compatibility.
 
 ## Limitations and open decisions
 
