@@ -1,33 +1,33 @@
-# Research Lab et évaluation
+# Research Lab and evaluation
 
-Le laboratoire est intégré à Harmonia et constitue le parcours principal de démonstration. Le [guide de démonstration](DEMO.md) permet de comparer les stratégies sur des données synthétiques ; [READINESS](READINESS.md) consigne les validations récentes.
+The lab is built into Harmonia and is the main demo path. The [demo guide](DEMO.md) shows how to compare strategies on synthetic data; [READINESS](READINESS.md) records recent validations.
 
-## Où se trouve le Lab actuel
+## Where the current Lab lives
 
-Il n’existe pas de dossier Research Lab séparé dans ce checkout. Ses capacités sont intégrées à l’application :
+There is no separate Research Lab directory in this repository. Its capabilities are part of the application:
 
-| Actif | Emplacement et comportement |
+| Asset | Location and behavior |
 |---|---|
-| Moteurs de scoring | [scoring_service.py](../src/backend/app/services/scoring_service.py) (Polars + bulk COPY), [asset_service.py](../src/backend/app/services/asset_service.py), [finding_service.py](../src/backend/app/services/finding_service.py) (calculs SQL) |
-| Profils et scénarios | [models/scoring.py](../src/backend/app/models/scoring.py) : profils vulnerability/asset/finding révisés, contextes, presets |
-| Exécutions/comparaisons | [profile_service.py](../src/backend/app/services/profile_service.py) : jobs async, progression, annulation, runs, snapshots de configuration, watermarks, stale/inconsistent |
-| Interface expérimentale | [DashboardPanel.tsx](../src/frontend/src/components/DashboardPanel.tsx), [ProfileManager.tsx](../src/frontend/src/components/ProfileManager.tsx), [comparison/](../src/frontend/src/components/comparison) : composer baseline/candidats, distributions, heatmap, divergences, historique |
-| Fixtures et vérification | [tests backend](../src/backend/tests), trois fichiers de tests frontend de comparaison, [50 BOM synthétiques et générateur](../samples/assets/README.md) |
+| Scoring engines | [scoring_service.py](../src/backend/app/services/scoring_service.py) (Polars + bulk COPY), [asset_service.py](../src/backend/app/services/asset_service.py), [finding_service.py](../src/backend/app/services/finding_service.py) (SQL computations) |
+| Profiles and scenarios | [models/scoring.py](../src/backend/app/models/scoring.py): revised vulnerability/asset/finding profiles, contexts, presets |
+| Runs/comparisons | [profile_service.py](../src/backend/app/services/profile_service.py): async jobs, progress, cancellation, runs, configuration snapshots, watermarks, stale/inconsistent |
+| Experimental UI | [DashboardPanel.tsx](../src/frontend/src/components/DashboardPanel.tsx), [ProfileManager.tsx](../src/frontend/src/components/ProfileManager.tsx), [comparison/](../src/frontend/src/components/comparison): compose baseline/candidates, distributions, heatmap, divergences, history |
+| Fixtures and verification | [backend tests](../src/backend/tests), three frontend comparison test files, [50 synthetic BOMs and generator](../samples/assets/README.md) |
 
-Les presets intégrés Balanced, Active Exploitation et Business Impact sont cloneables ; le preset actif est distinct du choix des candidats comparés. Les scores persistent par profil ou contexte, avec révision et référence de run. Les anciennes API de scoring restent des adapters vers le preset actif.
+The built-in presets Balanced, Active Exploitation and Business Impact can be cloned; the active preset is separate from the choice of compared candidates. Scores are persisted per profile or context, with a revision and a run reference. The legacy scoring APIs remain adapters to the active preset.
 
-Les comparaisons mesurent distributions, transitions de niveaux, promotions/démotions, deltas de score/rang et corrélation de Spearman. Le détail des divergences dispose de recherche, filtres et pagination. Ces métriques comparent des stratégies ; elles ne prouvent pas la justesse des findings ou le gain métier sans ground truth.
+Comparisons measure distributions, level transitions, promotions/demotions, score/rank deltas and Spearman correlation. The divergence detail view supports search, filters and pagination. These metrics compare strategies; without ground truth they do not prove that findings are correct or that there is a business benefit.
 
-## Limites scientifiques actuelles
+## Current scientific limitations
 
-- Les snapshots concernent la **configuration**, pas un dataset immutable. Les watermarks utilisent counts et dates maximales ; ils détectent certaines évolutions sans identifier cryptographiquement toutes les entrées.
-- Les tables de scores contiennent les résultats courants par profil/contexte. Un recalcul peut remplacer les lignes utilisées par une comparaison ; ses résumés persistent, mais le détail peut expirer. Le rerun utilise les données courantes, pas un replay garanti du passé.
-- Les jobs vivent dans le processus FastAPI ; au redémarrage les jobs interrompus sont marqués failed. Ce n’est pas une file distribuée ni une reprise exacte.
-- `priority_confidence` représente principalement la disponibilité pondérée des données ; `match_confidence` est heuristique. Aucune calibration empirique générale n’est établie.
-- Le catalogue synthétique possède un générateur déterministe mais pas de vérité terrain complète sur les vulnérabilités applicables. Le nombre de findings dépend aussi des données NVD ingérées.
-- Le registry en mémoire ne couvre pour l’instant que `product_resolver` v0 ; il n’existe pas de plateforme de plugins, d’évaluation ML/LLM/prompts ou de benchmark générique universel. Tests logiciels et benchmark scientifique sont complémentaires.
+- Snapshots cover the **configuration**, not an immutable dataset. Watermarks use counts and maximum dates; they detect some changes without cryptographically identifying every input.
+- Score tables hold current results per profile/context. A recomputation can replace the rows used by a comparison; its summaries persist, but the detail can expire. A rerun uses current data, not a guaranteed replay of the past.
+- Jobs live in the FastAPI process; on restart, interrupted jobs are marked failed. This is neither a distributed queue nor an exact resume.
+- `priority_confidence` mainly reflects weighted data availability; `match_confidence` is heuristic. No general empirical calibration has been established.
+- The synthetic catalog has a deterministic generator but no complete ground truth about applicable vulnerabilities. The number of findings also depends on the ingested NVD data.
+- The in-memory registry currently only covers `product_resolver` v0; there is no plugin platform, ML/LLM/prompt evaluation or universal generic benchmark. Software tests and scientific benchmarks are complementary.
 
-## Contrat cible et adaptation progressive
+## Target contract and gradual adoption
 
 ```text
 EvaluationRun {
@@ -43,19 +43,19 @@ ModuleResult {
 }
 ```
 
-Versionner les schémas, résolveurs, algorithmes, modèles, prompts et stratégies pertinents. Conserver les entrées/résultats nécessaires au replay, les annotations et leur provenance ; distinguer corpus de développement et corpus d’évaluation. Les décisions humaines peuvent enrichir le dataset, avec traçabilité des changements.
+Version the relevant schemas, resolvers, algorithms, models, prompts and strategies. Keep the inputs/outputs needed for replay, annotations and their provenance; separate development and evaluation corpora. Human decisions can enrich the dataset, with changes tracked.
 
-Le Module Registry décrira progressivement contrats, versions et configurations. Ne pas transformer automatiquement `ScoringProfile` en registry universel : une configuration révisée n’est pas la version du code exécuté. Adapter les moteurs historiques derrière un contrat commun seulement lorsque cela sert une tranche mesurable.
+The Module Registry will gradually describe contracts, versions and configurations. Do not automatically turn `ScoringProfile` into a universal registry: a revised configuration is not the version of the code being executed. Wrap legacy engines behind a common contract only when it serves a measurable slice.
 
-| Module | Évaluations attendues |
+| Module | Expected evaluations |
 |---|---|
-| Asset Identity Resolution | Qualité des liens, faux merges/splits, abstentions ; corpus et métriques distincts du produit |
-| Product Resolver | Precision/recall, top-1/top-k, auto-résolution, revue humaine, faux matchs, non résolus, régressions |
-| Applicabilité | Décisions correctes par famille/version/borne, coverage, unknown, faux positifs/négatifs |
-| Consolidation | Observations correctement regroupées, faux merges/splits, conservation d’evidence |
-| Priorité | Baseline CVSS vs Harmonia, backlog actionnable, pertinence métier et explications, deltas existants |
-| ML/LLM/prompts | Qualité, calibration, coverage, coût, latence, régressions et politique de données |
+| Asset Identity Resolution | Link quality, false merges/splits, abstentions; corpus and metrics separate from Product |
+| Product Resolver | Precision/recall, top-1/top-k, auto-resolution, human review, false matches, unresolved, regressions |
+| Applicability | Correct decisions by family/version/bound, coverage, unknown, false positives/negatives |
+| Consolidation | Correctly grouped observations, false merges/splits, evidence preservation |
+| Priority | CVSS baseline vs Harmonia, actionable backlog, business relevance and explanations, existing deltas |
+| ML/LLM/prompts | Quality, calibration, coverage, cost, latency, regressions and data policy |
 
-La phase 1 doit ajouter une première mesure end-to-end des incertitudes. Ne pas multiplier arbitrairement les confidences des étapes comme si elles étaient des probabilités indépendantes.
+Phase 1 must add a first end-to-end measurement of uncertainty. Do not multiply per-stage confidences as if they were independent probabilities.
 
-Le premier module enregistré est `product_resolver` v0 : son runner produit exactitude des résolutions, coverage, faux matchs, taux `unknown`/`ambiguous` et top-k avec dénominateurs. Catalogue et corpus JSON distincts sont sous `samples/evaluation/product_resolution_v0/`; le rapport porte leurs digests. Le corpus actuel est minuscule : ses métriques ne démontrent aucune généralisation à des inventaires réels. L’Applicability Engine n’est pas commencé.
+The first registered module is `product_resolver` v0: its runner reports resolution accuracy, coverage, false matches, `unknown`/`ambiguous` rates and top-k, with denominators. Separate JSON catalog and corpus live under `samples/evaluation/product_resolution_v0/`; the report includes their digests. The current corpus is tiny: its metrics demonstrate no generalization to real inventories. The Applicability Engine has not been started.

@@ -1,11 +1,11 @@
-# LLM — direction non implémentée
+# LLM — unimplemented direction
 
-Aucun client LLM, provider métier, prompt produit ou pipeline d’inférence n’est implémenté. Product Resolution v0 est déterministe. Ce document conserve seulement les contraintes d’une éventuelle évolution ; il n’est pas un plan de travail.
+No LLM client, business provider, product prompt or inference pipeline is implemented. Product Resolution v0 is deterministic. This document only records the constraints for a possible future evolution; it is not a work plan.
 
-- Réserver le LLM à l’ambiguïté linguistique/sémantique : extraction ou classement de candidats. La comparaison finale de versions appartient à du code adapté à la famille, avec `unknown` pour un format non supporté.
-- Passer par des tâches indépendantes des providers, sorties structurées et schémas versionnés. Une CVE est une unité d’inférence indépendante ; un batch groupe des requêtes atomiques.
-- Versionner modèle, prompt, configuration, entrées et résultats ; conserver candidats, abstentions et décisions humaines. Le replay conserve la réponse originale sans promettre une nouvelle réponse identique.
-- Pouvoir désactiver entièrement le LLM. Ne pas dépendre de l’envoi d’une CMDB client à un provider externe ; appliquer une politique explicite selon la sensibilité des données.
-- Traiter advisories et observations comme données, jamais comme instructions. Mesurer qualité, coût, latence, couverture et régressions avant raccordement au produit.
+- Reserve the LLM for linguistic/semantic ambiguity: extracting or ranking candidates. Final version comparison belongs to code suited to the version family, returning `unknown` for unsupported formats.
+- Go through provider-independent tasks, structured outputs and versioned schemas. One CVE is one independent inference unit; a batch groups atomic requests.
+- Version model, prompt, configuration, inputs and results; keep candidates, abstentions and human decisions. Replay keeps the original response without promising an identical new one.
+- Make it possible to disable the LLM entirely. Do not depend on sending a customer's CMDB to an external provider; apply an explicit policy based on data sensitivity.
+- Treat advisories and observations as data, never as instructions. Measure quality, cost, latency, coverage and regressions before wiring anything into the product.
 
-Voir [vision](VISION.md), [résolution](RESOLUTION.md) et [évaluation](EVALUATION.md).
+See [vision](VISION.md), [resolution](RESOLUTION.md) and [evaluation](EVALUATION.md).

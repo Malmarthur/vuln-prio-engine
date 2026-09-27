@@ -1,8 +1,8 @@
-# Architecture et domaine canoniques
+# Canonical architecture and domain
 
-État du prototype et frontières de la cible. Les colonnes « actuelle » ci-dessous décrivent le code ; le flux complet reste une direction, pas un pipeline déjà disponible.
+Prototype status and boundaries of the target design. The "current" columns below describe the code; the full flow remains a direction, not a pipeline that is already available.
 
-## Flux et frontières
+## Flow and boundaries
 
 ```text
 Connectors → Raw ingestion / staging → Normalization
@@ -10,33 +10,33 @@ Connectors → Raw ingestion / staging → Normalization
           → Applicability Engine → Finding Consolidation
           → Context / Prioritization → API / UI / workflow
 
-Transversal : Evidence / provenance, versions, replay,
-              Module Registry, Evaluation / Research Lab
+Cross-cutting: Evidence / provenance, versions, replay,
+               Module Registry, Evaluation / Research Lab
 ```
 
-Les adapters futurs traduiraient Qualys, Tenable, ServiceNow ou GLPI ; les entrées actuelles sont NVD/EPSS/KEV/EUVD et CycloneDX. Ils traduisent les données vers des représentations internes stables. Les formats externes ne doivent pas définir le domaine. Ce découpage est fonctionnel : conserver le monolithe actuel tant qu’une séparation de déploiement n’est pas justifiée. Le « graphe » conceptuel n’impose pas une nouvelle base graphe ; PostgreSQL peut porter les relations.
+Future adapters would translate Qualys, Tenable, ServiceNow or GLPI; current inputs are NVD/EPSS/KEV/EUVD and CycloneDX. Adapters translate data into stable internal representations. External formats must not define the domain. This breakdown is functional: keep the current monolith until a deployment split is justified. The conceptual "graph" does not require a new graph database; PostgreSQL can hold the relationships.
 
-## Concepts distincts
+## Distinct concepts
 
-| Concept cible | Responsabilité | Correspondance actuelle |
+| Target concept | Responsibility | Current counterpart |
 |---|---|---|
-| Asset | Entité observée/gérée : host, VM, cloud resource, container, workload, application, service, database ; identité interne de corrélation | `Asset` avec UUID, mais un seul `external_id` global et une source |
-| Source record | Objet externe identifié dans sa source, observations datées et lien vers l’Asset | `raw_payload` et `external_id`, pas de modèle multisource |
-| Software observation | Nom/version réellement observés sur un asset, date, source, evidence | `AssetComponent`, remplacé lors du réimport |
-| Product | Identité logicielle interne stable, vendor, nom canonique, aliases, metadata/composants, identifiants externes et bindings CPE optionnels | `Product`, aliases et bindings v0 ; `VulnerabilityProduct` reste une projection CPE NVD distincte |
-| Vulnerability | Vulnérabilité logique pouvant avoir CVE, advisory et autres identifiants/intelligence | `Vulnerability` UUID, mais `cve_id` obligatoire/unique et colonnes propres aux sources |
-| Finding | Application potentielle/effective d’une vulnérabilité à un asset/produit ; action consolidée | `Finding` existe, unicité composant × vulnérabilité |
-| Evidence / décision | Justification traçable des observations, résolutions, applicabilités et priorités | Décisions Product v0 append-only et snapshots ; pas d’entité générique couvrant les autres domaines |
+| Asset | Observed/managed entity: host, VM, cloud resource, container, workload, application, service, database; internal correlation identity | `Asset` with a UUID, but a single global `external_id` and one source |
+| Source record | External object identified in its source, dated observations and link to the Asset | `raw_payload` and `external_id`; no multi-source model |
+| Software observation | Name/version actually observed on an asset, date, source, evidence | `AssetComponent`, replaced on reimport |
+| Product | Stable internal software identity: vendor, canonical name, aliases, metadata/components, external identifiers and optional CPE bindings | `Product`, aliases and v0 bindings; `VulnerabilityProduct` remains a separate NVD CPE projection |
+| Vulnerability | Logical vulnerability that may have a CVE, advisory and other identifiers/intelligence | `Vulnerability` UUID, but `cve_id` is required/unique and columns are source-specific |
+| Finding | Potential/actual application of a vulnerability to an asset/product; consolidated action | `Finding` exists, unique per component × vulnerability |
+| Evidence / decision | Traceable justification of observations, resolutions, applicability and priorities | Append-only Product v0 decisions and snapshots; no generic entity covering other domains |
 
-Un CVE seul est une Vulnerability ; ce CVE sur `finance-db-prod-01` est un Finding. Plusieurs composants et observations peuvent contribuer à l’action consolidée Asset × Vulnerability. Le produit et les versions restent dans les liens justificatifs, même si l’action est consolidée.
+A CVE on its own is a Vulnerability; that CVE on `finance-db-prod-01` is a Finding. Several components and observations can contribute to the consolidated Asset × Vulnerability action. Product and versions stay in the supporting links, even when the action is consolidated.
 
-## Evidence et incertitude
+## Evidence and uncertainty
 
-Product Resolution v0 matérialise ce contrat pour sa seule décision : run/module/configuration/catalogue, snapshot de composant, candidats et signaux sont persistés. Il ne remplace pas encore les blobs raw ou les mécanismes de scoring existants, et sa confiance est heuristique.
+Product Resolution v0 materializes this contract for its own decision only: run/module/configuration/catalog, component snapshot, candidates and signals are persisted. It does not yet replace the raw blobs or the existing scoring mechanisms, and its confidence is heuristic.
 
-Toute décision importante devrait référencer les observations et sources utilisées, leur chaîne raw, la méthode, le resolver/module et sa version, sa configuration, ses candidats/scores, la confiance et une éventuelle validation humaine. Pour une inférence LLM : provider, modèle, prompt et schéma versionnés. Distinguer heure d’observation, d’ingestion et de décision lorsque pertinentes.
+Every important decision should reference the observations and sources used, their raw chain, the method, the resolver/module and its version, its configuration, its candidates/scores, the confidence and any human validation. For an LLM inference: versioned provider, model, prompt and schema. Distinguish observation, ingestion and decision times where relevant.
 
-Contrat conceptuel :
+Conceptual contract:
 
 ```text
 Decision {
@@ -51,24 +51,24 @@ Decision {
 }
 ```
 
-Les statuts doivent distinguer résolu, unknown et ambiguous ; l’applicabilité doit distinguer applicable, non applicable et unknown. Le contrat Product v0 existe ; sa généralisation et le contrat d’applicabilité restent à implémenter. Une confiance heuristique n’est pas automatiquement une probabilité calibrée. Conserver les désaccords et raisons d’abstention.
+Statuses must distinguish resolved, unknown and ambiguous; applicability must distinguish applicable, not applicable and unknown. The Product v0 contract exists; its generalization and the applicability contract remain to be implemented. A heuristic confidence is not automatically a calibrated probability. Keep disagreements and reasons for abstaining.
 
-Questions d’acceptation : pourquoi Tomcat 9.0.80 sur cet asset ? Pourquoi cette CVE est-elle applicable ? Pourquoi ce finding est-il critique maintenant ? Une chaîne de liens explicable doit permettre de répondre, sans seulement afficher un booléen.
+Acceptance questions: why Tomcat 9.0.80 on this asset? Why does this CVE apply? Why is this finding critical now? An explainable chain of links must make it possible to answer, rather than just displaying a boolean.
 
-## Consolidation et priorité
+## Consolidation and priority
 
-Observation Qualys + observation Tenable + evidence manuelle peuvent contribuer au même Finding. Conserver les observations et rendre les règles de consolidation auditables. La présence d’une contrainte d’unicité ne constitue pas à elle seule cette consolidation. Préserver l’identité et l’historique lors des mises à jour d’inventaire est un chantier distinct du matching actuel.
+A Qualys observation + a Tenable observation + manual evidence can contribute to the same Finding. Keep the observations and make consolidation rules auditable. A uniqueness constraint alone does not constitute consolidation. Preserving identity and history across inventory updates is a separate work item from the current matching.
 
-Le moteur de priorité peut combiner CVSS, EPSS, KEV, EUVD/intelligence d’exploitation, exposition Internet, reachability, environnement, criticité métier, owner/service, CIA, âge du finding, contrôles et règles client ; contribution aux chemins d’attaque seulement plus tard. Sortie : score/rang/niveau, facteurs qui augmentent ou réduisent la priorité, explication et version de stratégie — « WHY NOW? ».
+The priority engine can combine CVSS, EPSS, KEV, EUVD/exploitation intelligence, Internet exposure, reachability, environment, business criticality, owner/service, CIA, finding age, controls and customer rules; contribution to attack paths only later. Output: score/rank/level, factors that raise or lower the priority, explanation and strategy version — "WHY NOW?".
 
-Le scoring actuel constitue une première stratégie : vulnérabilité puis asset puis finding, configurations et révisions conservées pour les runs. L’UI affiche des détails de match et de score, mais ne fournit pas encore cette chaîne complète d’explication.
+The current scoring is a first strategy: vulnerability, then asset, then finding, with configurations and revisions kept for runs. The UI shows match and score details, but does not yet provide this full explanation chain.
 
-## Évolution incrémentale
+## Incremental evolution
 
-Les identités actuelles, pipelines et API restent utiles. Ajouter les nouvelles abstractions à côté, évaluer sur fixtures figées puis raccorder une tranche prouvée. Ne pas renommer `VulnerabilityProduct` en Product pour masquer la différence ; ne pas convertir sans analyse les findings existants ou effacer leurs scores. Détails : [inventory](INVENTORY.md), [résolution](RESOLUTION.md), [LLM](LLM.md), [évaluation](EVALUATION.md), [roadmap](../ROADMAP.md) et [plan actif](../PLAN.md).
+Current identities, pipelines and APIs remain useful. Add new abstractions alongside them, evaluate on frozen fixtures, then wire in a proven slice. Do not rename `VulnerabilityProduct` to Product to hide the difference; do not convert existing findings or erase their scores without analysis. Details: [inventory](INVENTORY.md), [resolution](RESOLUTION.md), [LLM](LLM.md), [evaluation](EVALUATION.md) and [roadmap](../ROADMAP.md).
 
-## Invariants de l’ingestion existante
+## Existing ingestion invariants
 
-Les normalizers Polars sérialisent les champs complexes en JSON avant leur conversion pour l’insert. `SOURCE_OWNED_COLUMNS` limite les mises à jour de chaque source ; le merge JSONB de `sources_raw` et le fallback summary KEV préservent les données des autres sources. Ces blobs conservent la dernière valeur par source, pas un historique immutable (EPSS y conserve une représentation minimale).
+Polars normalizers serialize complex fields to JSON before converting them for insert. `SOURCE_OWNED_COLUMNS` restricts the updates each source may perform; the JSONB merge of `sources_raw` and the KEV summary fallback preserve data from other sources. These blobs keep the latest value per source, not an immutable history (EPSS keeps a minimal representation there).
 
-Le runner NVD découpe les longues fenêtres et mémorise le début du sync réussi pour l’incrémental. EUVD est paginé ; les erreurs de source sont isolées par le runner. Les timestamps SQLAlchemy sont timezone-aware. Le scheduler et les jobs restent dans le processus FastAPI ; les logs texte opérationnels ne sont pas un audit métier.
+The NVD runner splits long windows and records the start of the last successful sync for incremental runs. EUVD is paginated; source errors are isolated by the runner. SQLAlchemy timestamps are timezone-aware. The scheduler and jobs live in the FastAPI process; operational text logs are not a business audit trail.

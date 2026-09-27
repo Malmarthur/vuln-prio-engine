@@ -1,27 +1,27 @@
 # Harmonia
 
-**Un laboratoire intégré pour comprendre comment les stratégies de scoring changent les priorités de remédiation.**
+**An integrated lab for understanding how scoring strategies change remediation priorities.**
 
-Harmonia croise intelligence de vulnérabilité et contexte des assets, calcule des scores à trois niveaux, puis compare profils et scénarios : distributions, changements de rang, transitions de priorité et divergences. Le projet explore ensuite la réconciliation Asset ↔ Product ↔ Vulnerability ↔ Finding, avec un premier résolveur de produits traçable.
+Harmonia combines vulnerability intelligence with asset context, computes scores at three levels, then compares profiles and scenarios: distributions, rank changes, priority transitions and divergences. The project then explores Asset ↔ Product ↔ Vulnerability ↔ Finding reconciliation, starting with a first traceable product resolver.
 
-C’est un **prototype**, pas un scanner, une CMDB ni un service prêt pour la production. Le parcours principal est le Lab dans **Dashboard → Compare** ; il fait partie de l’application.
+This is a **prototype**, not a scanner, a CMDB or a production-ready service. The main path is the Lab under **Dashboard → Compare**, which is part of the application itself.
 
-![Comparaison de stratégies Harmonia sur données synthétiques](docs/images/harmonia-compare.png)
+![Harmonia strategy comparison on synthetic data](docs/images/harmonia-compare.png)
 
-## Disponible, expérimental, prévu
+## Available, experimental, planned
 
-| Disponible dans le prototype | Limites |
+| Available in the prototype | Limitations |
 |---|---|
-| Connecteurs NVD, EPSS, KEV, EUVD ; normalisation et stockage PostgreSQL | Dépendance aux API externes ; pas de garantie de disponibilité |
-| Import CycloneDX, contexte asset, composants et findings | Réimport remplaçant les composants ; historique incomplet |
-| Scoring vulnérabilité / asset / finding, profils révisés, presets et Compare | Comparaison de stratégies, sans preuve de gain métier |
-| Product Resolution v0 : aliases, bindings optionnels, décisions, candidats, `unknown` / `ambiguous` | Catalogue réduit, déterministe, confiance heuristique |
+| NVD, EPSS, KEV and EUVD connectors; normalization and PostgreSQL storage | Depends on external APIs; no availability guarantee |
+| CycloneDX import, asset context, components and findings | Reimport replaces components; incomplete history |
+| Vulnerability / asset / finding scoring, revised profiles, presets and Compare | Compares strategies; no proof of business benefit |
+| Product Resolution v0: aliases, optional bindings, decisions, candidates, `unknown` / `ambiguous` | Small catalog, deterministic, heuristic confidence |
 
-**Expérimental :** matching CPE/version et applicabilité des findings. **Prévu, non commencé :** Applicability Engine ternaire. Identité asset multisource, consolidation multiscanner, Evidence générique, LLM et graphes d’attaque ne sont pas implémentés.
+**Experimental:** CPE/version matching and finding applicability. **Planned, not started:** ternary Applicability Engine. Multi-source asset identity, multi-scanner consolidation, generic Evidence, LLM support and attack graphs are not implemented.
 
-## Essayer le Lab
+## Try the Lab
 
-Prérequis : Docker avec Compose. Depuis la racine, cette stack isolée utilise uniquement des fixtures synthétiques, sans clé API ni `.env`. Les ports sont locaux ; sa base est jetable.
+Requirements: Docker with Compose. From the repository root, this isolated stack uses synthetic fixtures only, with no API key and no `.env`. Ports are bound locally and its database is disposable.
 
 ```bash
 docker compose --env-file /dev/null -p vvln-review -f compose.demo.yml build
@@ -32,33 +32,37 @@ docker compose --env-file /dev/null -p vvln-review -f compose.demo.yml up -d bac
 docker compose --env-file /dev/null -p vvln-review -f compose.demo.yml exec -T backend python /scripts/check_demo.py
 ```
 
-Ouvrir [Harmonia](http://localhost:13000), puis **Compare → Recent comparisons** et la comparaison préparée. Elle porte sur 6 vulnérabilités inventées, 3 assets et 18 findings. Comparer Balanced à Active Exploitation et Business Impact, puis examiner les divergences. Les identifiants `CVE-2099-*` sont des fixtures, pas des advisories réels.
+Open [Harmonia](http://localhost:13000), then **Compare → Recent comparisons** and the prepared comparison. It covers 6 made-up vulnerabilities, 3 assets and 18 findings. Compare Balanced with Active Exploitation and Business Impact, then inspect the divergences. The `CVE-2099-*` identifiers are fixtures, not real advisories.
 
-Le [guide de démonstration](docs/DEMO.md) explique les résultats et le parcours manuel. Le [bilan de validation](docs/READINESS.md) distingue les contrôles exécutés de leurs limites.
+The [demo guide](docs/DEMO.md) explains the results and the manual walkthrough. The [readiness report](docs/READINESS.md) separates the checks that were run from their limitations.
 
-Pour supprimer **uniquement cette stack jetable** :
+To remove **only this disposable stack**:
 
 ```bash
 docker compose --env-file /dev/null -p vvln-review -f compose.demo.yml down -v
 ```
 
-## Développement avec sources réelles
+## Development with real sources
 
-Créer `.env` à partir de `.env.example` s’il n’existe pas, adapter les valeurs puis lancer `make dev` : build, démarrage PostgreSQL, migrations, puis application. Interface sur [localhost:3000](http://localhost:3000), API/OpenAPI sur [localhost:8000/docs](http://localhost:8000/docs). Les réglages Compose sont destinés au développement local.
+Create `.env` from `.env.example` if it does not exist, adjust the values, then run `make dev`: build, PostgreSQL startup, migrations, then the application. The UI is on [localhost:3000](http://localhost:3000) and the API/OpenAPI on [localhost:8000/docs](http://localhost:8000/docs). The Compose settings are intended for local development.
 
-Configurer les ingestions dans Settings. La première synchronisation NVD peut être longue. Importer les [BOM synthétiques](samples/assets/README.md) dans Assets, résoudre les produits, lancer le matching dans Findings, puis calculer/comparer les scores. Le nombre de findings dépend des données ingérées ; une identité Product résolue n’alimente pas encore un moteur d’applicabilité complet.
+Configure ingestion in Settings. The first NVD sync can take a long time. Import the [synthetic BOMs](samples/assets/README.md) under Assets, resolve products, run matching under Findings, then compute and compare scores. The number of findings depends on the ingested data; a resolved Product identity does not yet feed a complete applicability engine.
 
-## Architecture et vérification
+## Architecture and verification
 
-FastAPI / SQLAlchemy async / PostgreSQL 16 / Alembic, Polars pour normalisation et scoring, APScheduler dans le backend ; React 18 / Vite / TypeScript / Tailwind. Le monolithe permet d’expérimenter sans infrastructure distribuée.
+FastAPI / async SQLAlchemy / PostgreSQL 16 / Alembic, Polars for normalization and scoring, APScheduler inside the backend; React 18 / Vite / TypeScript / Tailwind. The monolith makes it possible to experiment without distributed infrastructure.
 
-- [Architecture et invariants d’ingestion](docs/ARCHITECTURE.md)
-- [Résolution Product et limites CPE/version](docs/RESOLUTION.md)
-- [Inventory et comportement du réimport](docs/INVENTORY.md)
-- [Lab, métriques et limites scientifiques](docs/EVALUATION.md)
-- [Commandes de validation et revue des commits](docs/READINESS.md)
-- [Vision](docs/VISION.md), [roadmap](ROADMAP.md), [seul plan actif](PLAN.md), [instructions assistants](AGENTS.md)
+- [Architecture and ingestion invariants](docs/ARCHITECTURE.md)
+- [Product resolution and CPE/version limitations](docs/RESOLUTION.md)
+- [Inventory and reimport behavior](docs/INVENTORY.md)
+- [Lab, metrics and scientific limitations](docs/EVALUATION.md)
+- [Validation commands and commit review](docs/READINESS.md)
+- [Vision](docs/VISION.md), [roadmap](ROADMAP.md), [LLM constraints](docs/LLM.md)
 
-La CI vérifie migrations sur PostgreSQL dédié, tests backend, TypeScript, Vitest et build. Les fixtures DB tronquent/suppriment leurs tables : ne jamais les pointer vers une base à conserver. Les dépendances backend ont des bornes minimales, sans verrouillage complet ; une installation future peut donc résoudre d’autres versions.
+CI checks migrations on a dedicated PostgreSQL instance, backend tests, TypeScript, Vitest and the build. The DB fixtures truncate/drop their tables: never point them at a database you want to keep. Backend dependencies have lower bounds only, without a full lock; a future install may therefore resolve different versions.
 
-Le nom de présentation est **Harmonia**. Les noms techniques `vulnprio`/`vvln` (packages, bases, clés d’import et stockage navigateur) sont conservés pour compatibilité. La licence sera choisie ultérieurement ; la disponibilité juridique du nom reste à vérifier avant publication.
+The display name is **Harmonia**. The technical names `vulnprio`/`vvln` (packages, databases, import keys and browser storage) are kept for compatibility.
+
+## License
+
+Harmonia is licensed under the [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`). You can use, modify and self-host it freely; if you run a modified version as a network service, you must make its source code available to its users.

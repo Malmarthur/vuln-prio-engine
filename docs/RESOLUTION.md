@@ -1,25 +1,25 @@
-# Product Resolution et limites de l’applicabilité
+# Product Resolution and applicability limitations
 
-## Product Resolution v0 — implémenté
+## Product Resolution v0 — implemented
 
-`Product` est une identité logicielle interne stable, indépendante de sa version observée et de ses CPE éventuels. Un produit peut être résolu sans CPE officiel. Les modèles [product.py](../src/backend/app/models/product.py) persistent Product, aliases, bindings, runs et décisions ; migration additive `d9e0f1a2b3c4`.
+`Product` is a stable internal software identity, independent of its observed version and of any CPEs. A product can be resolved without an official CPE. The [product.py](../src/backend/app/models/product.py) models persist Products, aliases, bindings, runs and decisions; additive migration `d9e0f1a2b3c4`.
 
-Le [resolver pur](../src/backend/app/services/product_resolution.py) compare alias exact, alias/nom canonique normalisé prudemment, puis bindings CPE/purl explicitement catalogués. Il conserve tous les candidats plausibles et retourne `resolved`, `unknown` ou `ambiguous`, sans départager silencieusement un conflit. Les confiances 100/75 sont des niveaux heuristiques, pas des probabilités calibrées.
+The [pure resolver](../src/backend/app/services/product_resolution.py) checks exact aliases, carefully normalized aliases/canonical names, then explicitly cataloged CPE/purl bindings. It keeps every plausible candidate and returns `resolved`, `unknown` or `ambiguous`, without silently breaking a tie. The 100/75 confidences are heuristic levels, not calibrated probabilities.
 
-L’[orchestration](../src/backend/app/services/product_resolution_service.py) charge le catalogue embarqué, persiste une décision par composant avec snapshot, signaux, candidats, versions et empreintes de configuration/catalogue. Les décisions sont ajoutées à chaque run et survivent au remplacement du composant grâce à leur snapshot. Aucun fuzzy matching, validation humaine ou appel LLM n’est implémenté.
+The [orchestration layer](../src/backend/app/services/product_resolution_service.py) loads the embedded catalog and persists one decision per component with a snapshot, signals, candidates, versions and configuration/catalog fingerprints. Decisions are appended on every run and survive component replacement thanks to their snapshot. No fuzzy matching, human validation or LLM call is implemented.
 
-Le catalogue opérationnel embarque seulement quatre identités (dont des produits fictifs) : ce v0 démontre le contrat et la traçabilité, pas une couverture logicielle universelle. Le [corpus annoté](../samples/evaluation/product_resolution_v0/) contient cinq cas ; voir [évaluation](EVALUATION.md).
+The operational catalog embeds only four identities (including fictional products): this v0 demonstrates the contract and traceability, not universal software coverage. The [annotated corpus](../samples/evaluation/product_resolution_v0/) contains five cases; see [evaluation](EVALUATION.md).
 
-## Matching historique — expérimental et indépendant
+## Legacy matching — experimental and independent
 
-[VersionMatcher et CPE](../src/backend/app/services/cpe.py) gèrent parseur CPE partiel, aliases Windows, exact/range/wildcard et quelques équivalences numériques. Le comparateur tokenize chiffres/lettres ; il ne choisit pas une famille de versions et n’expose pas `unknown`.
+[VersionMatcher and CPE](../src/backend/app/services/cpe.py) provide a partial CPE parser, Windows aliases, exact/range/wildcard matching and a few numeric equivalences. The comparator tokenizes digits/letters; it does not select a version family and does not expose `unknown`.
 
-Le [service findings](../src/backend/app/services/finding_service.py) sélectionne par CPE part/vendor/product en SQL, évalue avec Polars et upsert les matchs composant × vulnérabilité. Les composants sans champs CPE exploitables sont exclus ; les candidats perdants et non-matchs ne sont pas persistés. Ses niveaux de confiance 100/98/95/90/65 sont également heuristiques.
+The [findings service](../src/backend/app/services/finding_service.py) selects by CPE part/vendor/product in SQL, evaluates with Polars and upserts component × vulnerability matches. Components without usable CPE fields are excluded; losing candidates and non-matches are not persisted. Its 100/98/95/90/65 confidence levels are also heuristic.
 
-`VulnerabilityProduct` représente les CPE/bornes projetés depuis NVD, pas un Product canonique. L’extraction NVD aplatit les entrées `vulnerable` et ne conserve pas toute la sémantique AND/OR, négations ou prérequis environnementaux. Les sources raw restent consultables. **Une résolution Product réussie ne démontre donc pas l’applicabilité d’une CVE et ne remplace pas ce matcher.**
+`VulnerabilityProduct` represents CPEs/bounds projected from NVD, not a canonical Product. NVD extraction flattens `vulnerable` entries and does not keep the full AND/OR semantics, negations or environmental prerequisites. Raw sources remain available. **A successful Product resolution therefore does not demonstrate that a CVE applies and does not replace this matcher.**
 
-## Applicability Engine — prévu, non commencé
+## Applicability Engine — planned, not started
 
-La cible est : Product canonique + version observée + contrainte normalisée/versionnée → comparateur par famille → `applicable` / `not_applicable` / `unknown`, avec texte source et justification. Les bindings côté vulnérabilité, l’AST, les familles et les configurations composées restent à implémenter. Un format non supporté doit pouvoir rester inconnu.
+The target is: canonical Product + observed version + normalized/versioned constraint → per-family comparator → `applicable` / `not_applicable` / `unknown`, with source text and justification. Vulnerability-side bindings, the AST, version families and composite configurations remain to be implemented. An unsupported format must be able to stay unknown.
 
-Cette évolution demandera une nouvelle tranche explicitement autorisée ; le [plan actif](../PLAN.md) concerne la préparation du prototype. Les validations récentes sont dans [READINESS](READINESS.md).
+This evolution will require a new, explicitly scoped work slice. Recent validations are in [READINESS](READINESS.md).

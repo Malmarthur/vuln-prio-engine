@@ -81,4 +81,4 @@ These fixtures exercise the **current experimental CPE matcher**, not a complete
 
 The target product model gives software an internal **Product identity independent of CPE**. Official bindings and derived CPE names are separate, optional evidence. Software without a CPE must remain representable. Preserve this catalog and generator as a Lab baseline; add explicit labeled corpora for new resolvers rather than treating the existing BOMs as proof of accuracy.
 
-See the [product roadmap](../../ROADMAP.md), [active implementation plan](../../PLAN.md), [Product/CPE resolution](../../docs/RESOLUTION.md) and [Research Lab evaluation](../../docs/EVALUATION.md).
+See the [product roadmap](../../ROADMAP.md), [Product/CPE resolution](../../docs/RESOLUTION.md) and [Research Lab evaluation](../../docs/EVALUATION.md).

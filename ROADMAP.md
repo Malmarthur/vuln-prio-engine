@@ -1,20 +1,20 @@
-# Roadmap — état du prototype
+# Roadmap — prototype status
 
-Mise à jour : 2026-09-27. La préparation GitHub/CV est terminée pour revue locale ; le [plan actif](PLAN.md) consigne sa clôture et les décisions restantes. Les validations actuelles sont dans [READINESS](docs/READINESS.md).
+Updated: 2026-09-27. GitHub publication preparation is in progress. Current validations are recorded in [READINESS](docs/READINESS.md).
 
-| Capacité | État |
+| Capability | Status |
 |---|---|
-| Ingestion NVD, EPSS, KEV, EUVD | Implémentée ; disponibilité des services externes non certifiée |
-| Lab intégré : scoring vulnerability/asset/finding, profils révisés, presets, runs et Compare | Implémenté ; parcours principal de démonstration |
-| Import CycloneDX, assets/composants et findings | Implémenté ; réimport remplaçant les composants, sans continuité complète d’historique |
-| Product Resolution v0 | Implémenté ; catalogue réduit, décisions persistées, unknown/ambiguous et benchmark versionné |
-| Matching CPE/version | Expérimental ; pas d’évaluation complète des configurations NVD |
-| Applicability Engine ternaire | Prévu, non commencé |
-| Consolidation multiscanner, identité asset multisource et Evidence générique | Non implémentés |
-| LLM, graphe d’attaque, fonctions commerciales | Non implémentés ; hors périmètre de cette préparation |
+| NVD, EPSS, KEV, EUVD ingestion | Implemented; availability of external services not guaranteed |
+| Integrated Lab: vulnerability/asset/finding scoring, revised profiles, presets, runs and Compare | Implemented; main demo path |
+| CycloneDX import, assets/components and findings | Implemented; reimport replaces components, without full history continuity |
+| Product Resolution v0 | Implemented; small catalog, persisted decisions, unknown/ambiguous and versioned benchmark |
+| CPE/version matching | Experimental; no complete evaluation of NVD configurations |
+| Ternary Applicability Engine | Planned, not started |
+| Multi-scanner consolidation, multi-source asset identity and generic Evidence | Not implemented |
+| LLM, attack graph, commercial features | Not implemented; out of scope for this preparation |
 
-Prochaine décision : revue du prototype, licence et identité publique, puis autorisation explicite de publication. Aucun renommage n’est appliqué.
+Next decision: prototype review and public identity, then publication. License: AGPL-3.0-only.
 
-L’évolution produit envisagée est : Product côté vulnérabilité/applicabilité → observations et consolidation → evidence de bout en bout → identité asset multisource. Cet ordre sera réévalué selon les preuves du Lab et les retours terrain. Il ne constitue pas une liste de fonctionnalités promises ou un chantier actif.
+The envisioned product evolution is: Product on the vulnerability/applicability side → observations and consolidation → end-to-end evidence → multi-source asset identity. This order will be reassessed based on evidence from the Lab and field feedback. It is not a list of promised features or an active work item.
 
-La validation terrain précède toute ambition commerciale. RBAC, isolation tenant, audit d’exploitation et robustesse de production restent à construire. Les graphes State/Capability et les recommandations défensives sont une direction lointaine, après validation du cœur.
+Field validation comes before any commercial ambition. RBAC, tenant isolation, operational auditing and production robustness remain to be built. State/Capability graphs and defensive recommendations are a distant direction, after the core has been validated.

@@ -1,19 +1,19 @@
-# Inventaire et identité des assets
+# Inventory and asset identity
 
-## Implémentation actuelle
+## Current implementation
 
-L’import CycloneDX JSON dans [asset_service.py](../src/backend/app/services/asset_service.py) associe un BOM à un asset. Le modèle [asset.py](../src/backend/app/models/asset.py) conserve un UUID interne, un `external_id` global, la source, le dernier `raw_payload`, les composants et le contexte (exposition, criticité métier, complexité de patch).
+The CycloneDX JSON import in [asset_service.py](../src/backend/app/services/asset_service.py) associates a BOM with an asset. The [asset.py](../src/backend/app/models/asset.py) model stores an internal UUID, a global `external_id`, the source, the latest `raw_payload`, the components and the context (exposure, business criticality, patch complexity).
 
-Les composants conservent nom, version, CPE, purl et `raw_component`. Product Resolution s’exécute séparément sur ces observations ; voir [résolution](RESOLUTION.md). Les [50 BOM synthétiques](../samples/assets/README.md) et leur générateur servent aux essais, sans vérité terrain complète sur les CVE applicables.
+Components store name, version, CPE, purl and `raw_component`. Product Resolution runs separately on these observations; see [resolution](RESOLUTION.md). The [50 synthetic BOMs](../samples/assets/README.md) and their generator are used for experiments, without complete ground truth on applicable CVEs.
 
-## Réimport et limites
+## Reimport and limitations
 
-L’import retrouve l’asset via son `external_id`, met à jour son contenu et **remplace ses composants**. La suppression cascade vers leurs findings/scores : un matching ultérieur peut retrouver les mêmes couples fonctionnels sans préserver leurs UUID ou `first_seen_at`. Les décisions Product conservent leurs snapshots et perdent leur lien vers le composant supprimé. Une réimportation n’est donc pas une garantie de continuité d’historique.
+The import finds the asset by its `external_id`, updates its content and **replaces its components**. Deletion cascades to their findings/scores: a later matching run can find the same functional pairs again without preserving their UUIDs or `first_seen_at`. Product decisions keep their snapshots and lose their link to the deleted component. A reimport is therefore not a guarantee of history continuity.
 
-Aucun connecteur CMDB/cloud/scanner, import CSV générique, collection de source records, historique d’observations ou arbitrage par attribut n’est implémenté. L’unicité de `external_id` n’est pas une résolution multisource.
+No CMDB/cloud/scanner connector, generic CSV import, source-record collection, observation history or per-attribute arbitration is implemented. Uniqueness of `external_id` is not multi-source resolution.
 
-## Direction, hors tranche active
+## Direction (outside the active scope)
 
-Un Asset serait une identité de corrélation reliée aux records de plusieurs sources, sans remplacer leur CMDB. L’autorité serait définie par attribut : organisationnelle (owner/service), observée (version/hostname) ou dérivée (Product/priorité). Il faudrait préserver valeur source, conflit, règle, date et décision.
+An Asset would be a correlation identity linked to records from several sources, without replacing their CMDB. Authority would be defined per attribute: organizational (owner/service), observed (version/hostname) or derived (Product/priority). The source value, conflict, rule, date and decision would need to be preserved.
 
-La résolution d’asset et la résolution de produit doivent rester deux moteurs évalués séparément. Hostname ou IP réutilisé ne suffit pas à prouver une identité ; utiliser IDs forts, temporalité, contradictions et abstention (`unknown`/`ambiguous`) avant de fusionner. Ce chantier n’est pas commencé.
+Asset resolution and product resolution must remain two separately evaluated engines. A reused hostname or IP is not enough to prove identity; use strong IDs, timing, contradictions and abstention (`unknown`/`ambiguous`) before merging. This work has not started.
