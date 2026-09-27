@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
+import FindingsFreshnessBanner from './components/FindingsFreshnessBanner';
 import Layout from './components/Layout';
 import DashboardPanel from './components/DashboardPanel';
 import StatsBar from './components/StatsBar';
@@ -9,6 +10,8 @@ const AssetsPanel = lazy(() => import('./components/AssetsPanel'));
 const FindingsPanel = lazy(() => import('./components/FindingsPanel'));
 const ComparisonWorkspace = lazy(() => import('./components/comparison/ComparisonWorkspace'));
 
+// Tabs whose content depends on findings being matched and scored.
+const FRESHNESS_TABS = new Set(['dashboard', 'vulnerabilities', 'assets', 'findings']);
 const VALID_TABS = new Set(['dashboard', 'compare', 'vulnerabilities', 'assets', 'findings', 'settings']);
 
 function tabFromUrl() {
@@ -18,6 +21,8 @@ function tabFromUrl() {
 
 export default function App() {
   const [tab, setTab] = useState(tabFromUrl);
+  // Bumped after a banner-triggered run so the current page reloads its data.
+  const [dataVersion, setDataVersion] = useState(0);
 
   useEffect(() => {
     const onPopState = () => setTab(tabFromUrl());
@@ -35,7 +40,14 @@ export default function App() {
 
   return (
     <Layout activeTab={tab} onTabChange={navigate}>
-      <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading…</div>}>
+      {FRESHNESS_TABS.has(tab) && (
+        <FindingsFreshnessBanner
+          key={tab}
+          onUpdated={() => setDataVersion((value) => value + 1)}
+          onOpenFindings={tab === 'findings' ? undefined : () => navigate('findings')}
+        />
+      )}
+      <Suspense key={dataVersion} fallback={<div className="p-8 text-center text-[13px] text-gray-500">Loading…</div>}>
         {tab === 'dashboard' ? (
           <DashboardPanel />
         ) : tab === 'compare' ? (

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -17,7 +18,8 @@ from app.schemas.scoring import ScoringProfile
 from app.services.asset_service import compute_asset_scores
 from app.services.cpe import VersionMatcher, cpe_product_candidates
 from app.services.scoring_service import compute_scores, get_scoring_profile
-from app.services.vulnerability_service import backfill_vulnerability_products
+from app.models.ingestion_log import IngestionLog
+from app.services.vulnerability_service import backfill_vulnerability_products, get_setting, set_setting
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +36,13 @@ DEFAULT_FINDING_SCORING_PROFILE: dict[str, Any] = {
     },
 }
 LEGACY_FINDING_PRIORITY_MAP = {"V0": "P0", "V1": "P1", "V2": "P2", "V3": "P3"}
+LAST_MATCHED_SETTING = "findings_last_matched_at"
 
 
 async def run_matching(session: AsyncSession) -> dict[str, int]:
+    # Record when this run started so data that lands during the run still
+    # counts as newer than the matching.
+    started_at = (await session.execute(select(func.now()))).scalar_one()
     product_rows = (await session.execute(select(func.count(VulnerabilityProduct.id)))).scalar_one()
     if product_rows == 0:
         await backfill_vulnerability_products(session)
@@ -53,6 +59,7 @@ async def run_matching(session: AsyncSession) -> dict[str, int]:
     matched_findings = _evaluate_candidate_matches(candidate_rows)
     await _bulk_upsert_findings(session, matched_findings)
     await session.commit()
+    await set_setting(session, LAST_MATCHED_SETTING, started_at.isoformat())
 
     logger.info(
         "Finding matching evaluated %d candidates and matched %d",
@@ -374,6 +381,76 @@ async def get_finding_stats(session: AsyncSession, preset_id: UUID | None = None
         "unscored_findings": total - scored,
         "priority_distribution": priority_distribution,
         "exposure_distribution": {row[0]: row[1] for row in exposure_rows},
+    }
+
+
+async def get_finding_freshness(session: AsyncSession, preset_id: UUID | None = None) -> dict[str, Any]:
+    """Tell whether findings lag behind their inputs.
+
+    Matching is stale when NVD data or assets changed after the last matching
+    run; scoring is stale when findings have no score in the active context.
+    """
+    from app.services.profile_service import resolve_context
+
+    raw_last_matched = await get_setting(session, LAST_MATCHED_SETTING)
+    last_matched_at = datetime.fromisoformat(raw_last_matched) if raw_last_matched else None
+    if last_matched_at is None:
+        # Deployments that matched before this setting existed.
+        last_matched_at = (await session.execute(select(func.max(Finding.last_seen_at)))).scalar_one()
+
+    # Failed NVD runs count too: they may have committed some batches before failing.
+    vulnerabilities_updated_at = (
+        await session.execute(
+            select(func.max(IngestionLog.finished_at)).where(
+                IngestionLog.source == "nvd", IngestionLog.status.in_(("success", "failed"))
+            )
+        )
+    ).scalar_one()
+    assets_updated_at = (await session.execute(select(func.max(Asset.updated_at)))).scalar_one()
+    matchable_components = (
+        await session.execute(
+            select(func.count(AssetComponent.id)).where(
+                AssetComponent.cpe_part.is_not(None),
+                AssetComponent.cpe_vendor.is_not(None),
+                AssetComponent.cpe_product.is_not(None),
+            )
+        )
+    ).scalar_one()
+    vulnerability_count = (await session.execute(select(func.count(Vulnerability.id)))).scalar_one()
+
+    reasons: list[str] = []
+    if matchable_components and vulnerability_count:
+        if last_matched_at is None:
+            reasons.append("never_matched")
+        else:
+            if vulnerabilities_updated_at and vulnerabilities_updated_at > last_matched_at:
+                reasons.append("vulnerabilities_updated")
+            if assets_updated_at and assets_updated_at > last_matched_at:
+                reasons.append("assets_updated")
+    matching_stale = bool(reasons)
+
+    context = await resolve_context(session, preset_id)
+    total = (await session.execute(select(func.count(Finding.id)))).scalar_one()
+    scored = (
+        await session.execute(
+            select(func.count(FindingScore.finding_id)).where(
+                FindingScore.scoring_context_id == context.id,
+                FindingScore.priority_score.is_not(None),
+            )
+        )
+    ).scalar_one()
+    unscored = total - scored
+    if unscored:
+        reasons.append("findings_unscored")
+
+    return {
+        "matching_stale": matching_stale,
+        "scoring_stale": unscored > 0,
+        "reasons": reasons,
+        "last_matched_at": last_matched_at,
+        "vulnerabilities_updated_at": vulnerabilities_updated_at,
+        "assets_updated_at": assets_updated_at,
+        "unscored_findings": unscored,
     }
 
 

@@ -1,4 +1,8 @@
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy import select
+
+from app.models.ingestion_log import IngestionLog
 
 from app.models.asset import Finding
 from app.services.vulnerability_service import sync_vulnerability_products_from_records
@@ -104,6 +108,56 @@ async def test_findings_match_and_score_endpoints(client, db_session, vuln_facto
     res = await client.get("/api/v1/findings/stats")
     assert res.status_code == 200
     assert res.json()["total_findings"] == 1
+
+
+async def test_finding_freshness_tracks_matching_and_scoring(client, db_session, vuln_factory):
+    res = await client.get("/api/v1/findings/freshness")
+    assert res.status_code == 200
+    assert res.json()["matching_stale"] is False  # nothing to match yet
+    assert res.json()["reasons"] == []
+
+    vuln = vuln_factory(
+        cve_id="CVE-2025-00002",
+        affected_products=[{"cpe": "cpe:2.3:a:nginx:nginx:1.25.0:*:*:*:*:*:*:*"}],
+    )
+    db_session.add(vuln)
+    await db_session.commit()
+    await sync_vulnerability_products_from_records(
+        db_session,
+        [{"cve_id": vuln.cve_id, "affected_products": vuln.affected_products}],
+    )
+    assert (await client.post("/api/v1/assets/import/cyclonedx", json=_payload())).status_code == 200
+
+    body = (await client.get("/api/v1/findings/freshness")).json()
+    assert body["matching_stale"] is True
+    assert body["reasons"] == ["never_matched"]
+
+    assert (await client.post("/api/v1/findings/match/run")).status_code == 200
+    body = (await client.get("/api/v1/findings/freshness")).json()
+    assert body["matching_stale"] is False
+    assert body["scoring_stale"] is True
+    assert body["reasons"] == ["findings_unscored"]
+    assert body["last_matched_at"] is not None
+
+    assert (await client.post("/api/v1/findings/scoring/run")).status_code == 200
+    body = (await client.get("/api/v1/findings/freshness")).json()
+    assert body["matching_stale"] is False
+    assert body["scoring_stale"] is False
+    assert body["reasons"] == []
+
+    later = datetime.now(timezone.utc) + timedelta(minutes=1)
+    # Other sources and still-running NVD runs do not affect matching.
+    db_session.add(IngestionLog(source="epss", status="success", started_at=later, finished_at=later))
+    db_session.add(IngestionLog(source="nvd", status="running", started_at=later))
+    await db_session.commit()
+    assert (await client.get("/api/v1/findings/freshness")).json()["matching_stale"] is False
+
+    # A failed NVD run may have committed batches before failing.
+    db_session.add(IngestionLog(source="nvd", status="failed", started_at=later, finished_at=later))
+    await db_session.commit()
+    body = (await client.get("/api/v1/findings/freshness")).json()
+    assert body["matching_stale"] is True
+    assert body["reasons"] == ["vulnerabilities_updated"]
 
 
 async def test_finding_scoring_profile_crud(client):

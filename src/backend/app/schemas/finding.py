@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -74,6 +74,16 @@ class MatchingRunResponse(BaseModel):
     components_processed: int
     candidates: int
     findings_matched: int
+
+
+class FindingFreshness(BaseModel):
+    matching_stale: bool
+    scoring_stale: bool
+    reasons: list[Literal["never_matched", "vulnerabilities_updated", "assets_updated", "findings_unscored"]]
+    last_matched_at: Optional[datetime] = None
+    vulnerabilities_updated_at: Optional[datetime] = None
+    assets_updated_at: Optional[datetime] = None
+    unscored_findings: int
 
 
 class FindingScoringRunResponse(BaseModel):

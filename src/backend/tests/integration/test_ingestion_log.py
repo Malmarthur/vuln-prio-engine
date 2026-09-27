@@ -5,7 +5,7 @@ import asyncio
 from datetime import datetime, timezone
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.models.ingestion_log import IngestionLog
 from app.services.vulnerability_service import (
@@ -43,6 +43,21 @@ class TestIngestionRunContextManager:
         log = result.scalar_one()
         assert log.status == "failed"
         assert "boom" in log.error_message
+
+    async def test_database_error_still_records_failure(self, db_session):
+        """An aborted transaction must not leave the log stuck in 'running'."""
+        with pytest.raises(Exception):
+            async with ingestion_run(db_session, "nvd") as ctx:
+                ctx["processed"] = 42
+                await db_session.execute(text("SELECT 1/0"))
+
+        db_session.expire_all()
+        result = await db_session.execute(select(IngestionLog).where(IngestionLog.source == "nvd"))
+        log = result.scalar_one()
+        assert log.status == "failed"
+        assert "division by zero" in log.error_message
+        assert log.records_processed == 42
+        assert log.finished_at is not None
 
     async def test_cancellation_sets_cancelled(self, db_session):
         with pytest.raises(asyncio.CancelledError):

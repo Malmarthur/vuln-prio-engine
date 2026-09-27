@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.asset import Finding
 from app.schemas.finding import (
+    FindingFreshness,
     FindingResponse,
     FindingScoringProfile,
     FindingScoringRunResponse,
@@ -17,6 +18,7 @@ from app.schemas.finding import (
 )
 from app.services.finding_service import (
     compute_finding_scores,
+    get_finding_freshness,
     get_finding_scoring_profile,
     get_finding_stats,
     list_findings,
@@ -120,6 +122,11 @@ async def findings(
     except Exception as exc:
         logger.exception("Failed to query findings")
         raise HTTPException(status_code=500, detail="Failed to retrieve findings") from exc
+
+
+@router.get("/freshness", response_model=FindingFreshness)
+async def finding_freshness(preset_id: Optional[UUID] = None, db: AsyncSession = Depends(get_db)):
+    return await get_finding_freshness(db, preset_id)
 
 
 @router.get("/stats", response_model=FindingStats)

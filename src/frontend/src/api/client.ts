@@ -427,6 +427,18 @@ export interface FindingStats {
   exposure_distribution: Record<string, number>;
 }
 
+export type FindingFreshnessReason = 'never_matched' | 'vulnerabilities_updated' | 'assets_updated' | 'findings_unscored';
+
+export interface FindingFreshness {
+  matching_stale: boolean;
+  scoring_stale: boolean;
+  reasons: FindingFreshnessReason[];
+  last_matched_at: string | null;
+  vulnerabilities_updated_at: string | null;
+  assets_updated_at: string | null;
+  unscored_findings: number;
+}
+
 export interface MatchingRunResponse {
   components_processed: number;
   candidates: number;
@@ -692,6 +704,10 @@ export function fetchFindings(params: QueryParams = {}, signal?: AbortSignal): P
 
 export function fetchFindingStats(): Promise<FindingStats> {
   return request<FindingStats>('/findings/stats');
+}
+
+export function fetchFindingFreshness(): Promise<FindingFreshness> {
+  return request<FindingFreshness>('/findings/freshness');
 }
 
 export function runFindingMatching(): Promise<MatchingRunResponse> {

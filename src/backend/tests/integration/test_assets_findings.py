@@ -99,6 +99,14 @@ async def test_product_sync_matching_and_finding_scoring(db_session, vuln_factor
     assert product_count == 1
     assert (await db_session.execute(select(VulnerabilityProduct))).scalar_one().cpe_product == "openssl"
 
+    # NVD repeats identical cpeMatch entries across configuration nodes.
+    duplicated = vuln.affected_products + vuln.affected_products
+    product_count = await sync_vulnerability_products_from_records(
+        db_session,
+        [{"cve_id": vuln.cve_id, "affected_products": duplicated}],
+    )
+    assert product_count == 1
+
     await import_cyclonedx_asset(db_session, _cyclonedx_payload())
     match_result = await run_matching(db_session)
     assert match_result["findings_matched"] == 1
