@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useActivity, useActivityFinished } from '../lib/activity';
 import { getErrorMessage } from '../lib/utils';
 import Pagination from './Pagination';
 import StatusTag, { type StatusTone } from './StatusTag';
@@ -111,13 +112,7 @@ export default function SettingsPanel() {
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [polling, setPolling] = useState<boolean>(false);
   const [errorModal, setErrorModal] = useState<string | null>(null);
-  const pollingRef = useRef(polling);
-  pollingRef.current = polling;
-  // Prevents concurrent in-flight polling requests when a tick is slow
-  const pollingInFlight = useRef(false);
-
   // Load everything on mount
   useEffect(() => {
     Promise.all([
@@ -134,42 +129,17 @@ export default function SettingsPanel() {
       .catch(console.error);
   }, [logPage]);
 
-  // Auto-poll while any source is running or pending.
-  // Guard flag prevents concurrent in-flight requests if a tick takes > 2s.
+  // Live status comes from the global activity feed: whenever an ingestion
+  // starts, progresses or ends, refresh the source table (and the log on end).
+  const { tasks, refresh: refreshActivity } = useActivity();
+  const ingestionSignature = tasks
+    .filter((task) => task.kind === 'ingestion')
+    .map((task) => `${task.id}:${task.status}:${Math.round(task.progress ?? 0)}`)
+    .join('|');
   useEffect(() => {
-    if (!polling) return;
-
-    const id = setInterval(async () => {
-      if (pollingInFlight.current) return;
-      pollingInFlight.current = true;
-      try {
-        const data = await fetchIngestionStatus();
-        setStatus(data);
-        const active = data.some(
-          (s) => s.status === 'running' || s.status === 'pending',
-        );
-        if (!active) {
-          setPolling(false);
-          try {
-            const l = await fetchIngestionLogs({ page: 1, per_page: 20 });
-            setLogs(l);
-            setLogPage(1);
-          } catch {
-            // Non-critical — log list will refresh on next manual action
-          }
-        }
-      } catch {
-        // Network error during polling — will retry on next tick
-      } finally {
-        pollingInFlight.current = false;
-      }
-    }, 2000);
-
-    return () => {
-      clearInterval(id);
-      pollingInFlight.current = false;
-    };
-  }, [polling]);
+    fetchIngestionStatus().then(setStatus).catch(console.error);
+  }, [ingestionSignature]);
+  useActivityFinished((task) => task.kind === 'ingestion', () => refreshLogs());
 
   const handleSaveSetting = async (key: string, value: number | string) => {
     try {
@@ -207,10 +177,9 @@ export default function SettingsPanel() {
       await triggerIngestion(source);
       setMsg(`Triggered ${source} ingestion`);
       setTimeout(() => setMsg(null), 3000);
-      // Immediately refresh both status and logs, then start polling
       fetchIngestionStatus().then(setStatus).catch(console.error);
       refreshLogs();
-      setPolling(true);
+      refreshActivity();
     } catch (e) {
       setMsg(`Error: ${getErrorMessage(e)}`);
     } finally {
@@ -234,6 +203,7 @@ export default function SettingsPanel() {
     } finally {
       fetchIngestionStatus().then(setStatus).catch(console.error);
       refreshLogs();
+      refreshActivity();
       setCancelling(null);
     }
   };

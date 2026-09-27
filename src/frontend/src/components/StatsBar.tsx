@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchStats, VulnerabilityStats } from '../api/client';
+import { useActivityFinished } from '../lib/activity';
 import { priorityBarClass } from '../lib/priority';
 import CompactKpi, { CompactKpiStrip } from './CompactKpi';
 
@@ -12,6 +13,10 @@ export default function StatsBar() {
   useEffect(() => {
     fetchStats().then(setStats).catch((e: Error) => setError(e.message));
   }, []);
+
+  useActivityFinished((task) => task.kind === 'ingestion' || (task.kind === 'run' && (task.scope === 'vulnerability' || task.scope === 'preset')), () => {
+    fetchStats().then(setStats).catch((e: Error) => setError(e.message));
+  });
 
   if (error) {
     return <div className="notice-error mb-4">Failed to load stats: {error}</div>;

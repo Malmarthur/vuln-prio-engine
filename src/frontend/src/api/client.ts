@@ -155,12 +155,14 @@ export interface ScoringPreset {
 
 export interface ScoringJob {
   id: string;
-  kind: 'run' | 'comparison';
+  kind: 'run' | 'comparison' | 'matching';
   scope: ScoringScope;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   progress: number;
   progress_detail: {
-    phase?: 'queued' | 'preparing' | 'scoring' | 'finalizing' | 'completed' | 'cancelled' | 'failed';
+    phase?: 'queued' | 'preparing' | 'scoring' | 'finalizing' | 'completed' | 'cancelled' | 'failed' | 'loading' | 'evaluating' | 'saving';
+    label?: string;
+    stage?: 'matching' | 'scoring';
     target_id?: string;
     target_name?: string;
     completed_targets?: number;
@@ -623,6 +625,46 @@ export function fetchScoringJob(id: string): Promise<ScoringJob> {
 
 export function cancelScoringJob(id: string): Promise<ScoringJob> {
   return request<ScoringJob>(`/scoring/jobs/${id}/cancel`, { method: 'POST' });
+}
+
+/** Queue a background scoring run; without target it scores the active preset's profile. */
+export function startScoringRun(scope: ScoringScope, targetId?: string): Promise<ScoringJob> {
+  return request<ScoringJob>('/scoring/runs', {
+    method: 'POST',
+    body: JSON.stringify({ scope, target_id: targetId ?? null }),
+  });
+}
+
+export function startMatchingJob(scoreAfter: boolean): Promise<ScoringJob> {
+  return request<ScoringJob>('/findings/match/jobs', {
+    method: 'POST',
+    body: JSON.stringify({ score_after: scoreAfter }),
+  });
+}
+
+export interface ActivityJob extends ScoringJob {
+  title: string;
+  result_summary: Record<string, number> | null;
+}
+
+export interface ActivityIngestion {
+  id: string;
+  source: string;
+  status: 'pending' | 'running' | 'success' | 'failed' | 'cancelled' | 'cancelling';
+  progress: number | null;
+  started_at: string | null;
+  finished_at: string | null;
+  records_processed: number | null;
+  error_message: string | null;
+}
+
+export interface Activity {
+  jobs: ActivityJob[];
+  ingestions: ActivityIngestion[];
+}
+
+export function fetchActivity(): Promise<Activity> {
+  return request<Activity>('/activity');
 }
 
 export function fetchComparisonResult(id: string): Promise<ComparisonResult> {

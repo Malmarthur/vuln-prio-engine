@@ -25,13 +25,11 @@ import {
   resetFindingScoringProfile,
   resetAssetScoringProfile,
   resetScoringProfile,
-  runAssetScoring,
-  runFindingScoring,
-  runScoring,
   saveAssetScoringProfile,
   saveFindingScoringProfile,
   saveScoringProfile,
 } from '../api/client';
+import { affectsFindings, affectsScores, progressText, type Task, useActiveTask, useActivity, useActivityFinished } from '../lib/activity';
 import { getErrorMessage } from '../lib/utils';
 import AddMetricButton from './scoring/AddMetricButton';
 import MetricCard from './scoring/MetricCard';
@@ -72,9 +70,12 @@ export default function DashboardPanel() {
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [computingVulns, setComputingVulns] = useState(false);
-  const [computingAssets, setComputingAssets] = useState(false);
-  const [computingFindings, setComputingFindings] = useState(false);
+  // Scoring runs as background jobs; button state follows the activity feed so
+  // it survives navigation and page reloads.
+  const { startScoring } = useActivity();
+  const vulnTask = useActiveTask((task) => task.kind === 'run' && task.scope === 'vulnerability');
+  const assetTask = useActiveTask((task) => task.kind === 'run' && task.scope === 'asset');
+  const findingTask = useActiveTask(affectsFindings);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const msgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -88,6 +89,8 @@ export default function DashboardPanel() {
     fetchAssetStats().then(setAssetStats).catch(fail);
     fetchFindingStats().then(setFindingStats).catch(fail);
   };
+
+  useActivityFinished(affectsScores, () => loadStats());
 
   const load = async () => {
     setError(null);
@@ -266,56 +269,34 @@ export default function DashboardPanel() {
 
   const handleComputeVulns = async () => {
     if (!profile) return;
-    setComputingVulns(true);
     setError(null);
     try {
       await saveScoringProfile(profile);
-      const res = await runScoring();
-      const [dist, stats] = await Promise.all([fetchScoreDistribution(), fetchStats()]);
-      setDistribution(dist);
-      setVulnStats(stats);
-      showMessage(`Scored ${res.rows_updated.toLocaleString()} CVEs`);
+      await startScoring('vulnerability');
     } catch (e) {
       setError(getErrorMessage(e));
-    } finally {
-      setComputingVulns(false);
     }
   };
 
   const handleComputeAssets = async () => {
     if (!assetProfile) return;
-    setComputingAssets(true);
     setError(null);
     try {
       await saveAssetScoringProfile(assetProfile);
-      const res = await runAssetScoring();
-      const stats = await fetchAssetStats();
-      setAssetStats(stats);
-      showMessage(`Scored ${res.rows_updated.toLocaleString()} assets`);
+      await startScoring('asset');
     } catch (e) {
       setError(getErrorMessage(e));
-    } finally {
-      setComputingAssets(false);
     }
   };
 
   const handleComputeFindings = async () => {
-    if (!assetProfile || !findingProfile) return;
-    setComputingFindings(true);
+    if (!profile || !assetProfile || !findingProfile) return;
     setError(null);
     try {
-      await Promise.all([saveAssetScoringProfile(assetProfile), saveFindingScoringProfile(findingProfile)]);
-      const res = await runFindingScoring();
-      const [dist, findings, vuln, assets] = await Promise.all([fetchScoreDistribution(), fetchFindingStats(), fetchStats(), fetchAssetStats()]);
-      setDistribution(dist);
-      setFindingStats(findings);
-      setVulnStats(vuln);
-      setAssetStats(assets);
-      showMessage(`Scored ${res.rows_updated.toLocaleString()} findings`);
+      await Promise.all([saveScoringProfile(profile), saveAssetScoringProfile(assetProfile), saveFindingScoringProfile(findingProfile)]);
+      await startScoring('preset');
     } catch (e) {
       setError(getErrorMessage(e));
-    } finally {
-      setComputingFindings(false);
     }
   };
 
@@ -355,7 +336,7 @@ export default function DashboardPanel() {
 
   const editingConfig = editingColumn ? profile.columns[editingColumn] : null;
   const editingMeta = editingColumn ? eligibleColumns[editingColumn] : null;
-  const busy = saving || computingVulns || computingAssets || computingFindings;
+  const busy = saving || Boolean(vulnTask || assetTask || findingTask);
 
   return (
     <div className="space-y-4">
@@ -404,9 +385,9 @@ export default function DashboardPanel() {
           action={
             <StageActionButton
               busy={busy}
-              computing={computingVulns}
+              task={vulnTask}
               icon={<Play className="h-3.5 w-3.5" />}
-              loadingLabel="Scoring CVEs…"
+              loadingLabel="Scoring CVEs"
               label="Compute CVE scores"
               onClick={handleComputeVulns}
             />
@@ -465,9 +446,9 @@ export default function DashboardPanel() {
           action={
             <StageActionButton
               busy={busy}
-              computing={computingAssets}
+              task={assetTask}
               icon={<Play className="h-3.5 w-3.5" />}
-              loadingLabel="Scoring assets…"
+              loadingLabel="Scoring assets"
               label="Compute asset scores"
               onClick={handleComputeAssets}
             />
@@ -520,9 +501,9 @@ export default function DashboardPanel() {
           action={
             <StageActionButton
               busy={busy}
-              computing={computingFindings}
+              task={findingTask}
               icon={<Play className="h-3.5 w-3.5" />}
-              loadingLabel="Scoring findings…"
+              loadingLabel="Scoring findings"
               label="Compute finding scores"
               onClick={handleComputeFindings}
             />
@@ -630,18 +611,18 @@ function StageCard({ step, icon, title, description, action, children }: {
   );
 }
 
-function StageActionButton({ busy, computing, icon, loadingLabel, label, onClick }: {
+function StageActionButton({ busy, task, icon, loadingLabel, label, onClick }: {
   busy: boolean;
-  computing: boolean;
+  task: Task | undefined;
   icon: React.ReactNode;
   loadingLabel: string;
   label: string;
   onClick: () => void;
 }) {
   return (
-    <button onClick={onClick} disabled={busy} className="btn-primary btn-sm">
-      {computing ? <Spinner /> : icon}
-      {computing ? loadingLabel : label}
+    <button onClick={onClick} disabled={busy} className="btn-primary btn-sm" title={task?.label}>
+      {task ? <Spinner /> : icon}
+      {task ? `${loadingLabel} ${progressText(task)}` : label}
     </button>
   );
 }

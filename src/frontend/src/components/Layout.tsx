@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react';
+import ActivityPanel, { ActivityChip } from './ActivityPanel';
 import { GitCompareArrows, LayoutDashboard, type LucideIcon, Server, Settings, ShieldAlert, Target } from 'lucide-react';
 
 interface LayoutProps {
@@ -78,6 +79,9 @@ export default function Layout({ activeTab, onTabChange, children }: LayoutProps
             </div>
           ))}
         </nav>
+        <div className="hidden md:block">
+          <ActivityPanel />
+        </div>
         <div className="hidden border-t border-gray-800 px-4 py-3 text-[11px] leading-4 text-gray-500 md:block">
           Research prototype
           <br />
@@ -91,7 +95,10 @@ export default function Layout({ activeTab, onTabChange, children }: LayoutProps
             <div className="text-[11px] font-medium uppercase tracking-wider text-gray-400">
               {NAV_GROUPS.find((group) => group.items.includes(active))?.label}
             </div>
-            <h1 className="text-lg font-semibold text-gray-900">{active.label}</h1>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h1 className="text-lg font-semibold text-gray-900">{active.label}</h1>
+              <ActivityChip />
+            </div>
             <p className="text-[13px] text-gray-500">{active.description}</p>
           </div>
         </header>

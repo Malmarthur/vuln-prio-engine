@@ -122,6 +122,32 @@ class JobResponse(BaseModel):
     finished_at: Optional[datetime] = None
 
 
+class ActivityJob(JobResponse):
+    title: str
+    result_summary: Optional[dict[str, Any]] = None
+
+
+class ActivityIngestion(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    source: str
+    status: str
+    progress: Optional[float] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    records_processed: Optional[int] = None
+    error_message: Optional[str] = None
+
+
+class ActivityResponse(BaseModel):
+    jobs: list[ActivityJob]
+    ingestions: list[ActivityIngestion]
+
+
+class MatchingJobRequest(BaseModel):
+    score_after: bool = False
+
+
 class RunHistoryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

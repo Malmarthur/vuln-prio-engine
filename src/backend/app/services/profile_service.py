@@ -31,6 +31,11 @@ from app.schemas.scoring import (
 
 logger = logging.getLogger(__name__)
 _job_lock = asyncio.Lock()
+ACTIVE_JOB_STATUSES = ("pending", "running")
+
+
+class JobCancelled(Exception):
+    """Raised by a progress report when the user asked to cancel the job."""
 
 
 async def ensure_builtin_profiles(session: AsyncSession) -> None:
@@ -395,6 +400,22 @@ async def enqueue_job(session: AsyncSession, kind: str, scope: str, request: dic
     return job
 
 
+async def enqueue_matching_job(session: AsyncSession, score_after: bool) -> ScoringJob:
+    """Queue asset ↔ vulnerability matching, optionally followed by scoring of the active preset."""
+    active = (
+        await session.execute(
+            select(ScoringJob.id).where(ScoringJob.kind == "matching", ScoringJob.status.in_(ACTIVE_JOB_STATUSES))
+        )
+    ).first()
+    if active is not None:
+        raise JobConflict("A matching job is already queued or running")
+    return await enqueue_job(session, "matching", "finding", {"score_after": score_after})
+
+
+class JobConflict(Exception):
+    """Raised when an equivalent job is already queued or running."""
+
+
 async def cancel_job(session: AsyncSession, job_id: UUID) -> ScoringJob:
     job = await session.get(ScoringJob, job_id)
     if job is None:
@@ -414,74 +435,104 @@ async def _execute_job(job_id: UUID) -> None:
             job = await session.get(ScoringJob, job_id)
             if job is None or job.status == "cancelled":
                 return
-            job.status, job.started_at = "running", datetime.now(timezone.utc)
-            job.progress_detail = {
-                "phase": "preparing",
-                "completed_targets": 0,
-                "total_targets": len(job.request.get("target_ids", [])),
-            }
-            await session.commit()
-            try:
-                targets = [UUID(value) for value in job.request.get("target_ids", [])]
-                total = max(len(targets), 1)
-                cache: dict[str, set[UUID]] = {"vulnerability": set(), "asset": set(), "finding": set()}
-                for index, target in enumerate(targets):
-                    await session.refresh(job)
-                    if job.cancel_requested:
-                        job.status = "cancelled"
-                        job.progress_detail = {
-                            "phase": "cancelled",
-                            "completed_targets": index,
-                            "total_targets": total,
-                        }
-                        break
-                    target_name = await _target_name(session, job.scope, target)
-                    job.progress_detail = {
-                        "phase": "scoring",
-                        "target_id": str(target),
-                        "target_name": target_name,
-                        "completed_targets": index,
-                        "total_targets": total,
-                    }
-                    await session.commit()
-                    await run_target(session, job.scope, target, job.id, cache)
-                    job.progress = (index + 1) / total * 100
-                    job.progress_detail = {
-                        "phase": "scoring",
-                        "target_id": str(target),
-                        "target_name": target_name,
-                        "completed_targets": index + 1,
-                        "total_targets": total,
-                    }
-                    await session.commit()
-                else:
-                    if job.kind == "comparison":
-                        job.progress_detail = {
-                            "phase": "finalizing",
-                            "completed_targets": total,
-                            "total_targets": total,
-                        }
-                        await session.commit()
-                        job.result_summary = await _build_comparison_summary(session, job)
-                    job.status = "completed"
-                    job.progress_detail = {
-                        "phase": "completed",
-                        "completed_targets": total,
-                        "total_targets": total,
-                    }
-                job.finished_at = datetime.now(timezone.utc)
-                await session.commit()
-            except Exception as exc:
-                logger.exception("Scoring job %s failed", job_id)
-                await session.rollback()
-                job = await session.get(ScoringJob, job_id)
-                job.status, job.error = "failed", str(exc)
-                job.progress_detail = {
-                    **(job.progress_detail or {}),
-                    "phase": "failed",
-                }
-                job.finished_at = datetime.now(timezone.utc)
-                await session.commit()
+            await run_job(session, job)
+
+
+async def _report_progress(session: AsyncSession, job: ScoringJob, progress: float, detail: dict[str, Any]) -> None:
+    """Persist progress, then honour a pending cancellation request."""
+    job.progress = round(max(0.0, min(progress, 100.0)), 2)
+    job.progress_detail = detail
+    await session.commit()
+    cancel_requested = (
+        await session.execute(select(ScoringJob.cancel_requested).where(ScoringJob.id == job.id))
+    ).scalar_one()
+    if cancel_requested:
+        raise JobCancelled()
+
+
+async def run_job(session: AsyncSession, job: ScoringJob) -> None:
+    """Execute a queued job in the given session and record its outcome."""
+    job_id = job.id
+    job.status, job.started_at = "running", datetime.now(timezone.utc)
+    job.progress_detail = {
+        "phase": "preparing",
+        "label": "Preparing",
+        "completed_targets": 0,
+        "total_targets": len(job.request.get("target_ids", [])),
+    }
+    await session.commit()
+    try:
+        if job.kind == "matching":
+            await _run_matching_job(session, job)
+        else:
+            await _run_scoring_job(session, job)
+        job.status = "completed"
+        job.progress = 100
+        job.finished_at = datetime.now(timezone.utc)
+        await session.commit()
+    except JobCancelled:
+        await session.rollback()
+        job = await session.get(ScoringJob, job_id)
+        job.status = "cancelled"
+        job.progress_detail = {**(job.progress_detail or {}), "phase": "cancelled", "label": "Cancelled"}
+        job.finished_at = datetime.now(timezone.utc)
+        await session.commit()
+    except Exception as exc:
+        logger.exception("Scoring job %s failed", job_id)
+        await session.rollback()
+        job = await session.get(ScoringJob, job_id)
+        job.status, job.error = "failed", str(exc)
+        job.progress_detail = {**(job.progress_detail or {}), "phase": "failed"}
+        job.finished_at = datetime.now(timezone.utc)
+        await session.commit()
+
+
+async def _run_matching_job(session: AsyncSession, job: ScoringJob) -> None:
+    from app.services.finding_service import run_matching
+
+    score_after = bool(job.request.get("score_after"))
+    matching_share = 60.0 if score_after else 100.0
+
+    async def matching_progress(pct: float, detail: dict[str, Any]) -> None:
+        await _report_progress(session, job, pct * matching_share / 100, {**detail, "stage": "matching"})
+
+    result = await run_matching(session, matching_progress)
+    summary: dict[str, Any] = {**result}
+    if score_after:
+        preset, _ = await get_active_preset(session)
+
+        async def scoring_progress(pct: float, detail: dict[str, Any]) -> None:
+            await _report_progress(session, job, matching_share + pct * (100 - matching_share) / 100, {**detail, "stage": "scoring"})
+
+        run = await run_target(session, "preset", preset.id, job.id, on_progress=scoring_progress)
+        summary["rows_scored"] = run.rows_scored
+    job.result_summary = summary
+    job.progress_detail = {"phase": "completed", "label": "Completed"}
+
+
+async def _run_scoring_job(session: AsyncSession, job: ScoringJob) -> None:
+    targets = [UUID(value) for value in job.request.get("target_ids", [])]
+    total = max(len(targets), 1)
+    cache: dict[str, set[UUID]] = {"vulnerability": set(), "asset": set(), "finding": set()}
+    rows_scored = 0
+    for index, target in enumerate(targets):
+        target_name = await _target_name(session, job.scope, target)
+        base = {"target_id": str(target), "target_name": target_name, "total_targets": total}
+
+        async def target_progress(pct: float, detail: dict[str, Any], index: int = index, base: dict[str, Any] = base) -> None:
+            await _report_progress(session, job, (index + pct / 100) / total * 100, {**base, **detail, "completed_targets": index})
+
+        await target_progress(0, {"phase": "scoring", "label": f"Scoring {target_name}"})
+        run = await run_target(session, job.scope, target, job.id, cache, on_progress=target_progress)
+        rows_scored += run.rows_scored or 0
+        await _report_progress(session, job, (index + 1) / total * 100, {**base, "phase": "scoring", "label": f"Scored {target_name}", "completed_targets": index + 1})
+    if job.kind == "comparison":
+        job.progress_detail = {"phase": "finalizing", "label": "Building the comparison", "completed_targets": total, "total_targets": total}
+        await session.commit()
+        job.result_summary = await _build_comparison_summary(session, job)
+    else:
+        job.result_summary = {"rows_scored": rows_scored}
+    job.progress_detail = {"phase": "completed", "label": "Completed", "completed_targets": total, "total_targets": total}
 
 
 async def run_target(
@@ -490,6 +541,7 @@ async def run_target(
     target_id: UUID,
     job_id: UUID | None = None,
     cache: dict[str, set[UUID]] | None = None,
+    on_progress: Any = None,
 ) -> ScoringRun:
     from app.services.asset_service import compute_asset_scores
     from app.services.finding_service import compute_finding_scores
@@ -522,12 +574,18 @@ async def run_target(
         vp = await _require_profile(session, context.vulnerability_profile_id, "vulnerability")
         ap = await _require_profile(session, context.asset_profile_id, "asset")
         fp = await _require_profile(session, context.finding_profile_id, "finding")
+        if on_progress:
+            await on_progress(0, {"phase": "scoring", "label": "Scoring vulnerabilities"})
         if vp.id not in cache["vulnerability"]:
             await compute_scores(session, VulnerabilityScoringProfile.model_validate(vp.config), vp.id, vp.revision)
             cache["vulnerability"].add(vp.id)
+        if on_progress:
+            await on_progress(40, {"phase": "scoring", "label": "Scoring assets"})
         if ap.id not in cache["asset"]:
             await compute_asset_scores(session, AssetScoringProfile.model_validate(ap.config), ap.id, ap.revision)
             cache["asset"].add(ap.id)
+        if on_progress:
+            await on_progress(50, {"phase": "scoring", "label": "Scoring findings"})
         if context.id not in cache["finding"]:
             rows, distribution = await compute_finding_scores(
                 session, FindingScoringProfile.model_validate(fp.config), context.id,

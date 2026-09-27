@@ -26,7 +26,8 @@ from app.services.finding_service import (
     run_matching,
     save_finding_scoring_profile,
 )
-from app.services.profile_service import reset_active_stage
+from app.schemas.scoring import JobResponse, MatchingJobRequest
+from app.services.profile_service import JobConflict, enqueue_matching_job, reset_active_stage
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,15 @@ async def match_findings(db: AsyncSession = Depends(get_db)):
     except Exception as exc:
         logger.exception("Failed to run finding matching")
         raise HTTPException(status_code=500, detail="Failed to run finding matching") from exc
+
+
+@router.post("/match/jobs", response_model=JobResponse, status_code=202)
+async def queue_matching_job(payload: MatchingJobRequest, db: AsyncSession = Depends(get_db)):
+    """Run matching in the background (optionally followed by scoring) with progress tracking."""
+    try:
+        return await enqueue_matching_job(db, payload.score_after)
+    except JobConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.post("/scoring/run", response_model=FindingScoringRunResponse)

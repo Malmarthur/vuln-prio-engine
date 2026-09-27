@@ -8,6 +8,7 @@ import {
   importCycloneDXAsset,
   runProductResolution,
 } from '../api/client';
+import { useActivityFinished } from '../lib/activity';
 import { getErrorMessage } from '../lib/utils';
 import CompactKpi, { CompactKpiStrip } from './CompactKpi';
 import Pagination from './Pagination';
@@ -55,6 +56,9 @@ export default function AssetsPanel() {
   useEffect(() => {
     load();
   }, [page, priority]);
+
+  // Asset scores change when a scoring job covering assets finishes.
+  useActivityFinished((task) => task.kind === 'run' && (task.scope === 'asset' || task.scope === 'preset'), () => load(page));
 
   const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);

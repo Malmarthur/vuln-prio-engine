@@ -1,6 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import FindingsFreshnessBanner from './components/FindingsFreshnessBanner';
 import Layout from './components/Layout';
+import Toasts from './components/Toasts';
+import { ActivityProvider } from './lib/activity';
 import DashboardPanel from './components/DashboardPanel';
 import StatsBar from './components/StatsBar';
 import VulnTable from './components/VulnTable';
@@ -21,8 +23,6 @@ function tabFromUrl() {
 
 export default function App() {
   const [tab, setTab] = useState(tabFromUrl);
-  // Bumped after a banner-triggered run so the current page reloads its data.
-  const [dataVersion, setDataVersion] = useState(0);
 
   useEffect(() => {
     const onPopState = () => setTab(tabFromUrl());
@@ -39,32 +39,31 @@ export default function App() {
   };
 
   return (
-    <Layout activeTab={tab} onTabChange={navigate}>
-      {FRESHNESS_TABS.has(tab) && (
-        <FindingsFreshnessBanner
-          key={tab}
-          onUpdated={() => setDataVersion((value) => value + 1)}
-          onOpenFindings={tab === 'findings' ? undefined : () => navigate('findings')}
-        />
-      )}
-      <Suspense key={dataVersion} fallback={<div className="p-8 text-center text-[13px] text-gray-500">Loading…</div>}>
-        {tab === 'dashboard' ? (
-          <DashboardPanel />
-        ) : tab === 'compare' ? (
-          <ComparisonWorkspace onManageProfiles={() => navigate('dashboard')} />
-        ) : tab === 'vulnerabilities' ? (
-          <>
-            <StatsBar />
-            <VulnTable />
-          </>
-        ) : tab === 'assets' ? (
-          <AssetsPanel />
-        ) : tab === 'findings' ? (
-          <FindingsPanel />
-        ) : (
-          <SettingsPanel />
+    <ActivityProvider>
+      <Layout activeTab={tab} onTabChange={navigate}>
+        {FRESHNESS_TABS.has(tab) && (
+          <FindingsFreshnessBanner onOpenFindings={tab === 'findings' ? undefined : () => navigate('findings')} />
         )}
-      </Suspense>
-    </Layout>
+        <Suspense fallback={<div className="p-8 text-center text-[13px] text-gray-500">Loading…</div>}>
+          {tab === 'dashboard' ? (
+            <DashboardPanel />
+          ) : tab === 'compare' ? (
+            <ComparisonWorkspace onManageProfiles={() => navigate('dashboard')} />
+          ) : tab === 'vulnerabilities' ? (
+            <>
+              <StatsBar />
+              <VulnTable />
+            </>
+          ) : tab === 'assets' ? (
+            <AssetsPanel />
+          ) : tab === 'findings' ? (
+            <FindingsPanel />
+          ) : (
+            <SettingsPanel />
+          )}
+        </Suspense>
+      </Layout>
+      <Toasts />
+    </ActivityProvider>
   );
 }

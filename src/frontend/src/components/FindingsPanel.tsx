@@ -4,11 +4,10 @@ import {
   FindingStats,
   fetchFindingStats,
   fetchFindings,
-  runFindingMatching,
-  runFindingScoring,
 } from '../api/client';
 import { ChevronRight } from 'lucide-react';
 import { PriorityBadge } from '../lib/priority';
+import { affectsFindings, progressText, useActiveTask, useActivity, useActivityFinished } from '../lib/activity';
 import { getErrorMessage } from '../lib/utils';
 import CompactKpi, { CompactKpiStrip } from './CompactKpi';
 import Pagination from './Pagination';
@@ -19,9 +18,6 @@ export default function FindingsPanel() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [matching, setMatching] = useState(false);
-  const [scoring, setScoring] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedFindingIds, setExpandedFindingIds] = useState<string[]>([]);
   const [filters, setFilters] = useState({
@@ -30,7 +26,10 @@ export default function FindingsPanel() {
     kev_only: false,
     internet_exposure: '',
   });
-  const calculating = matching || scoring;
+  const { startMatching, startScoring } = useActivity();
+  const matchingTask = useActiveTask((task) => task.kind === 'matching');
+  const scoringTask = useActiveTask((task) => task.kind === 'run' && (task.scope === 'preset' || task.scope === 'finding'));
+  const calculating = Boolean(matchingTask || scoringTask);
 
   const load = () => {
     setLoading(true);
@@ -50,36 +49,8 @@ export default function FindingsPanel() {
     load();
   }, [page, filters]);
 
-  const handleMatch = async () => {
-    setMatching(true);
-    setMsg(null);
-    setError(null);
-    try {
-      const res = await runFindingMatching();
-      setMsg(`Matched ${res.findings_matched.toLocaleString()} findings from ${res.components_processed.toLocaleString()} CPE-enabled components`);
-      setPage(1);
-      load();
-    } catch (e) {
-      setError(getErrorMessage(e));
-    } finally {
-      setMatching(false);
-    }
-  };
-
-  const handleScore = async () => {
-    setScoring(true);
-    setMsg(null);
-    setError(null);
-    try {
-      const res = await runFindingScoring();
-      setMsg(`Scored ${res.rows_updated.toLocaleString()} findings`);
-      load();
-    } catch (e) {
-      setError(getErrorMessage(e));
-    } finally {
-      setScoring(false);
-    }
-  };
+  // Matching and scoring run as background jobs; reload when they finish.
+  useActivityFinished(affectsFindings, () => load());
 
   const toggleFinding = (findingId: string) => {
     setExpandedFindingIds((ids) => (
@@ -111,7 +82,6 @@ export default function FindingsPanel() {
         <CompactKpi label="Isolated" value={formatNumber(stats?.exposure_distribution.isolated ?? 0)} />
       </CompactKpiStrip>
 
-      {msg && <div className="notice-info" role="status">{msg}</div>}
       {error && <div className="notice-error" role="alert">{error}</div>}
 
       <section className="panel">
@@ -121,13 +91,13 @@ export default function FindingsPanel() {
             <p className="panel-subtitle">Asset software matched against NVD affected CPEs, ordered by finding priority.</p>
           </div>
           <div className="flex gap-2">
-            <button onClick={handleMatch} disabled={calculating} className="btn-secondary btn-sm">
-              {matching && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700" />}
-              {matching ? 'Matching…' : 'Run matching'}
+            <button onClick={() => startMatching(false)} disabled={calculating} className="btn-secondary btn-sm" title={matchingTask?.label}>
+              {matchingTask && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700" />}
+              {matchingTask ? `Matching ${progressText(matchingTask)}` : 'Run matching'}
             </button>
-            <button onClick={handleScore} disabled={calculating} className="btn-primary btn-sm">
-              {scoring && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
-              {scoring ? 'Scoring…' : 'Score findings'}
+            <button onClick={() => startScoring('preset')} disabled={calculating} className="btn-primary btn-sm" title={scoringTask?.label}>
+              {scoringTask && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
+              {scoringTask ? `Scoring ${progressText(scoringTask)}` : 'Score findings'}
             </button>
           </div>
         </div>

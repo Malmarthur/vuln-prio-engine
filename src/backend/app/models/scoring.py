@@ -172,7 +172,7 @@ class ScoringJob(Base):
     )
 
     __table_args__ = (
-        CheckConstraint("kind IN ('run', 'comparison')", name="ck_scoring_jobs_kind"),
+        CheckConstraint("kind IN ('run', 'comparison', 'matching')", name="ck_scoring_jobs_kind"),
         Index("ix_scoring_jobs_status", "status"),
         Index("ix_scoring_jobs_created_at", "created_at"),
     )

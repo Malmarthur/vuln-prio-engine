@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { fetchVulnerabilities, PaginatedVulnerabilities } from '../api/client';
+import { useActivityFinished } from '../lib/activity';
 import { getErrorMessage } from '../lib/utils';
 import Filters from './Filters';
 import Pagination from './Pagination';
@@ -71,6 +72,9 @@ export default function VulnTable() {
       });
     return () => controller.abort();
   }, [params]);
+
+  // New scores or ingested data: refetch the current page with the same filters.
+  useActivityFinished((task) => task.kind === 'ingestion' || (task.kind === 'run' && (task.scope === 'vulnerability' || task.scope === 'preset')), () => setParams((p) => ({ ...p })));
 
   const handleSort = (col: string | null) => {
     if (!col) return;

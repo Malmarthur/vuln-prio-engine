@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, Awaitable, Callable
 from uuid import UUID
 
 import polars as pl
@@ -38,8 +39,22 @@ DEFAULT_FINDING_SCORING_PROFILE: dict[str, Any] = {
 LEGACY_FINDING_PRIORITY_MAP = {"V0": "P0", "V1": "P1", "V2": "P2", "V3": "P3"}
 LAST_MATCHED_SETTING = "findings_last_matched_at"
 
+# Progress callback: (percent 0-100, detail) -> awaitable. Jobs use it to
+# persist progress and may raise to cancel between batches.
+ProgressCallback = Callable[[float, dict[str, Any]], Awaitable[None]]
 
-async def run_matching(session: AsyncSession) -> dict[str, int]:
+
+async def _noop_progress(_pct: float, _detail: dict[str, Any]) -> None:
+    return None
+
+
+async def run_matching(session: AsyncSession, on_progress: ProgressCallback | None = None) -> dict[str, int]:
+    """Match asset components against vulnerability CPE projections.
+
+    Progress is reported as: loading candidates 0-50 %, evaluating 50-60 %,
+    saving 60-100 %.
+    """
+    report = on_progress or _noop_progress
     # Record when this run started so data that lands during the run still
     # counts as newer than the matching.
     started_at = (await session.execute(select(func.now()))).scalar_one()
@@ -55,9 +70,13 @@ async def run_matching(session: AsyncSession) -> dict[str, int]:
     components_processed = (
         await session.execute(select(func.count(AssetComponent.id)).where(*component_filters))
     ).scalar_one()
-    candidate_rows = await _load_candidate_rows(session)
-    matched_findings = _evaluate_candidate_matches(candidate_rows)
-    await _bulk_upsert_findings(session, matched_findings)
+    await report(0, {"phase": "loading", "label": "Loading candidate CPE pairs"})
+    candidate_rows = await _load_candidate_rows(session, report)
+    await report(50, {"phase": "evaluating", "label": f"Evaluating {len(candidate_rows):,} candidates", "candidates": len(candidate_rows)})
+    # CPU-bound and pure: run it off the event loop so the API stays responsive.
+    matched_findings = await asyncio.to_thread(_evaluate_candidate_matches, candidate_rows)
+    await report(60, {"phase": "saving", "label": f"Saving {len(matched_findings):,} findings", "findings_matched": len(matched_findings)})
+    await _bulk_upsert_findings(session, matched_findings, report)
     await session.commit()
     await set_setting(session, LAST_MATCHED_SETTING, started_at.isoformat())
 
@@ -73,7 +92,7 @@ async def run_matching(session: AsyncSession) -> dict[str, int]:
     }
 
 
-async def _load_candidate_rows(session: AsyncSession) -> list[dict[str, Any]]:
+async def _load_candidate_rows(session: AsyncSession, report: ProgressCallback = _noop_progress) -> list[dict[str, Any]]:
     components_stmt = (
         select(
             AssetComponent.asset_id.label("asset_id"),
@@ -110,6 +129,10 @@ async def _load_candidate_rows(session: AsyncSession) -> list[dict[str, Any]]:
     candidate_rows: list[dict[str, Any]] = []
     keys = list(components_by_key)
     for offset in range(0, len(keys), CANDIDATE_KEY_BATCH_SIZE):
+        await report(
+            offset / len(keys) * 50,
+            {"phase": "loading", "label": f"Loading candidates ({offset:,}/{len(keys):,} product keys)"},
+        )
         key_batch = keys[offset : offset + CANDIDATE_KEY_BATCH_SIZE]
         products_stmt = select(
             VulnerabilityProduct.vulnerability_id,
@@ -281,8 +304,16 @@ def _candidate_range_version_match(row: dict[str, Any]) -> dict[str, Any]:
     return {"matched": match.matched, "match_type": match.match_type, "match_confidence": match.confidence}
 
 
-async def _bulk_upsert_findings(session: AsyncSession, findings: list[dict[str, Any]]) -> None:
+async def _bulk_upsert_findings(
+    session: AsyncSession,
+    findings: list[dict[str, Any]],
+    report: ProgressCallback = _noop_progress,
+) -> None:
     for offset in range(0, len(findings), MATCH_UPSERT_BATCH_SIZE):
+        await report(
+            60 + offset / len(findings) * 40,
+            {"phase": "saving", "label": f"Saving findings ({offset:,}/{len(findings):,})"},
+        )
         batch = findings[offset : offset + MATCH_UPSERT_BATCH_SIZE]
         stmt = insert(Finding).values(batch)
         stmt = stmt.on_conflict_do_update(
