@@ -79,22 +79,25 @@ export default function DashboardPanel() {
   const [msg, setMsg] = useState<string | null>(null);
   const msgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Statistics load independently so each stage renders as soon as its own
+  // numbers arrive; only the (fast) scoring configuration gates the page.
+  const loadStats = () => {
+    const fail = (e: unknown) => setError(getErrorMessage(e));
+    fetchStats().then(setVulnStats).catch(fail);
+    fetchScoreDistribution().then(setDistribution).catch(fail);
+    fetchAssetStats().then(setAssetStats).catch(fail);
+    fetchFindingStats().then(setFindingStats).catch(fail);
+  };
+
   const load = async () => {
     setError(null);
-    const [vs, as, fs, dist, scoring, assetScoring, findingScoring, columns] = await Promise.all([
-      fetchStats(),
-      fetchAssetStats(),
-      fetchFindingStats(),
-      fetchScoreDistribution(),
+    loadStats();
+    const [scoring, assetScoring, findingScoring, columns] = await Promise.all([
       fetchScoringProfile(),
       fetchAssetScoringProfile(),
       fetchFindingScoringProfile(),
       fetchEligibleColumns(),
     ]);
-    setVulnStats(vs);
-    setAssetStats(as);
-    setFindingStats(fs);
-    setDistribution(dist);
     setProfile(scoring);
     setAssetProfile(assetScoring);
     setFindingProfile(findingScoring);
@@ -335,9 +338,9 @@ export default function DashboardPanel() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <div className="panel h-28 animate-pulse" />
-        <div className="panel h-72 animate-pulse" />
+      <div className="panel flex items-center gap-3 px-4 py-6 text-[13px] text-gray-600" role="status">
+        <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-accent-700" />
+        Loading scoring configuration…
       </div>
     );
   }
@@ -416,7 +419,7 @@ export default function DashboardPanel() {
             <StageMetric label="Unscored" value={distribution?.unscored_count} tone="muted" />
           </StageMetricGrid>
 
-          <PriorityDistribution title="Vulnerability priority" levels={VULN_PRIORITIES} counts={distribution?.priority_counts ?? {}} total={distribution?.scored_count ?? 0} />
+          <PriorityDistribution title="Vulnerability priority" levels={VULN_PRIORITIES} counts={distribution?.priority_counts} total={distribution?.scored_count ?? 0} />
 
           <StageSection
             title="Scoring metrics"
@@ -477,7 +480,7 @@ export default function DashboardPanel() {
             <StageMetric label="Internet-facing" value={assetStats?.exposure_distribution.internet ?? 0} tone="high" />
           </StageMetricGrid>
 
-          <PriorityDistribution title="Asset priority" levels={ASSET_PRIORITIES} counts={assetStats?.priority_distribution ?? {}} total={assetStats?.scored_assets ?? 0} />
+          <PriorityDistribution title="Asset priority" levels={ASSET_PRIORITIES} counts={assetStats?.priority_distribution} total={assetStats?.scored_assets ?? 0} />
 
           <StageSection title="Weights" description="Balance the asset factors used during scoring.">
             <WeightMetricGrid>
@@ -532,7 +535,7 @@ export default function DashboardPanel() {
             <StageMetric label="Internet-exposed" value={findingStats?.exposure_distribution.internet ?? 0} tone="high" />
           </StageMetricGrid>
 
-          <PriorityDistribution title="Finding priority" levels={FINDING_PRIORITIES} counts={findingStats?.priority_distribution ?? {}} total={findingStats?.scored_findings ?? 0} />
+          <PriorityDistribution title="Finding priority" levels={FINDING_PRIORITIES} counts={findingStats?.priority_distribution} total={findingStats?.scored_findings ?? 0} />
 
           <StageSection title="Weights" description="Tune how CVE and asset priority combine into finding priority.">
             <WeightMetricGrid>
@@ -664,7 +667,9 @@ function StageMetric({ label, value, tone = 'neutral' }: { label: string; value:
     <div className="relative min-w-0 border-b border-r border-gray-200 px-3 py-2">
       {marker && <span className={`absolute inset-y-0 left-0 w-[3px] ${marker}`} aria-hidden="true" />}
       <div className="label-caps truncate !text-[10px]">{label}</div>
-      <div className={`mt-0.5 truncate text-[17px] font-semibold tabular-nums ${toneClass}`}>{formatNumber(value)}</div>
+      <div className={`mt-0.5 truncate text-[17px] font-semibold tabular-nums ${toneClass}`}>
+        {value == null ? <span className="my-1 block h-4 w-16 animate-pulse bg-gray-100" aria-label="Loading" /> : value.toLocaleString()}
+      </div>
     </div>
   );
 }
@@ -730,21 +735,27 @@ function StageSection({ title, description, aside, children }: {
   );
 }
 
-function PriorityDistribution({ title, levels, counts, total }: { title: string; levels: readonly string[]; counts: Record<string, number>; total: number }) {
-  const max = Math.max(...levels.map((level) => counts[level] ?? 0), 1);
+function PriorityDistribution({ title, levels, counts, total }: { title: string; levels: readonly string[]; counts: Record<string, number> | undefined; total: number }) {
+  const max = Math.max(...levels.map((level) => counts?.[level] ?? 0), 1);
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
         <h4 className="label-caps text-gray-700">{title}</h4>
-        <span className="text-xs text-gray-500">{total.toLocaleString()} scored</span>
+        <span className="text-xs text-gray-500">{counts ? `${total.toLocaleString()} scored` : 'Loading…'}</span>
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-1.5" aria-busy={!counts}>
         {levels.map((level) => (
           <div key={level} className="grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_3rem] items-center gap-2 text-xs">
             <PriorityBadge level={level} />
-            <HorizontalBar value={counts[level] ?? 0} max={max} color={priorityBarClass(level)} />
-            <span className="text-right font-mono text-gray-700">{(counts[level] ?? 0).toLocaleString()}</span>
-            <span className="text-right font-mono text-gray-500">{total > 0 ? (((counts[level] ?? 0) / total) * 100).toFixed(1) : '0.0'}%</span>
+            {counts ? (
+              <>
+                <HorizontalBar value={counts[level] ?? 0} max={max} color={priorityBarClass(level)} />
+                <span className="text-right font-mono text-gray-700">{(counts[level] ?? 0).toLocaleString()}</span>
+                <span className="text-right font-mono text-gray-500">{total > 0 ? (((counts[level] ?? 0) / total) * 100).toFixed(1) : '0.0'}%</span>
+              </>
+            ) : (
+              <span className="col-span-3 h-2.5 animate-pulse bg-gray-100" />
+            )}
           </div>
         ))}
       </div>
@@ -940,10 +951,6 @@ function ValueGroup({ title, values, onChange }: { title: string; values: Record
 
 function Spinner() {
   return <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />;
-}
-
-function formatNumber(value: number | undefined): string {
-  return value == null ? '...' : value.toLocaleString();
 }
 
 function normalizeThreshold(value: number | undefined): number {
