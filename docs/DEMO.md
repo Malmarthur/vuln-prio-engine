@@ -30,7 +30,7 @@ Run configurations are snapshotted, but not the whole dataset. A recomputation c
 
 ## Real screenshots
 
-Captured on 2026-09-27 on the synthetic fixture, with no private data.
+Captured on 2026-09-27 from the isolated demo stack (synthetic fixture, no private data).
 
 ![Comparison setup](images/harmonia-compare.png)
 

@@ -6,7 +6,7 @@ Harmonia combines vulnerability intelligence with asset context, computes scores
 
 This is a **prototype**, not a scanner, a CMDB or a production-ready service. The main path is the Lab under **Dashboard → Compare**, which is part of the application itself.
 
-![Harmonia strategy comparison on synthetic data](docs/images/harmonia-compare.png)
+![Harmonia strategy comparison results on synthetic data](docs/images/harmonia-results.png)
 
 ## Available, experimental, planned
 
