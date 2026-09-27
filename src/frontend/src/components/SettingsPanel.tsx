@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getErrorMessage } from '../lib/utils';
+import Pagination from './Pagination';
+import StatusTag, { type StatusTone } from './StatusTag';
 import {
   cancelIngestion,
   fetchIngestionLogs,
@@ -35,24 +37,17 @@ function fmtDt(d: string | null | undefined): string {
   return new Date(d).toLocaleString();
 }
 
+const STATUS_TONES: Record<string, StatusTone> = {
+  success: 'positive',
+  failed: 'error',
+  running: 'pending',
+  pending: 'pending',
+  cancelled: 'muted',
+  cancelling: 'warning',
+};
+
 function StatusBadge({ status }: StatusBadgeProps) {
-  const colors: Record<string, string> = {
-    success: 'bg-green-100 text-green-700',
-    failed: 'bg-red-100 text-red-700',
-    running: 'bg-blue-100 text-blue-700',
-    pending: 'bg-amber-100 text-amber-700',
-    cancelled: 'bg-gray-100 text-gray-600',
-    cancelling: 'bg-orange-100 text-orange-700',
-  };
-  return (
-    <span
-      className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${
-        colors[status] || 'bg-gray-100 text-gray-600'
-      }`}
-    >
-      {status}
-    </span>
-  );
+  return <StatusTag tone={STATUS_TONES[status] ?? 'neutral'}>{status}</StatusTag>;
 }
 
 interface ProgressBarProps {
@@ -62,13 +57,13 @@ interface ProgressBarProps {
 function ProgressBar({ progress }: ProgressBarProps) {
   return (
     <div className="mt-1 flex items-center gap-1.5">
-      <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+      <div className="h-1.5 flex-1 bg-gray-200">
         <div
-          className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
+          className="h-1.5 bg-accent-600 transition-all duration-500"
           style={{ width: `${Math.min(progress, 100)}%` }}
         />
       </div>
-      <span className="text-xs text-gray-500 w-8 text-right">{Math.round(progress)}%</span>
+      <span className="w-8 text-right font-mono text-[11px] text-gray-500">{Math.round(progress)}%</span>
     </div>
   );
 }
@@ -81,24 +76,24 @@ interface ErrorModalProps {
 function ErrorModal({ message, onClose }: ErrorModalProps) {
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/40"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col"
+        className="mx-4 flex max-h-[80vh] w-full max-w-2xl flex-col border border-gray-300 bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200">
-          <h3 className="font-semibold text-gray-900 text-sm">Error Details</h3>
+        <div className="panel-header">
+          <h3 className="panel-title">Error details</h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+            className="btn-ghost btn-sm px-2 text-base leading-none"
             aria-label="Close"
           >
             &times;
           </button>
         </div>
-        <pre className="p-4 overflow-auto text-sm text-red-700 whitespace-pre-wrap font-mono">
+        <pre className="overflow-auto whitespace-pre-wrap p-4 font-mono text-xs text-red-800">
           {message}
         </pre>
       </div>
@@ -245,260 +240,161 @@ export default function SettingsPanel() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        {[...Array(4)].map((_, i) => (
-          <div
-            key={i}
-            className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 animate-pulse h-32"
-          />
-        ))}
+      <div className="space-y-4">
+        <div className="panel h-56 animate-pulse" />
+        <div className="panel h-72 animate-pulse" />
       </div>
     );
   }
 
   if (error) {
-    return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-        Failed to load settings: {error}
-      </div>
-    );
+    return <div className="notice-error">Failed to load settings: {error}</div>;
   }
 
+  const anyActive = status.some((s) => s.status === 'running' || s.status === 'pending');
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {errorModal && (
         <ErrorModal message={errorModal} onClose={() => setErrorModal(null)} />
       )}
 
-      {msg && (
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
-          {msg}
-        </div>
-      )}
+      {msg && <div className="notice-info" role="status">{msg}</div>}
 
-      {/* Schedule Intervals */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Schedule Intervals
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {SOURCES.map((src) => {
-            const intervalKey = SCHEDULE_KEYS[src];
-            const enabledKey = ENABLED_KEYS[src];
-            const enabledRaw = settings[enabledKey];
-            const isEnabled =
-              enabledRaw === undefined
-                ? true
-                : enabledRaw !== false && enabledRaw !== 'false';
-
-            return (
-              <div key={src}>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-sm font-medium text-gray-700">
-                    {src.toUpperCase()} (hours)
-                  </label>
-                  {/* Enable/Disable toggle */}
-                  <button
-                    onClick={() => handleToggleEnabled(src)}
-                    title={isEnabled ? 'Disable scheduled ingestion' : 'Enable scheduled ingestion'}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
-                      isEnabled ? 'bg-green-500' : 'bg-gray-300'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transform transition-transform ${
-                        isEnabled ? 'translate-x-4' : 'translate-x-0.5'
-                      }`}
-                    />
-                  </button>
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    min="1"
-                    value={settings[intervalKey] != null ? String(settings[intervalKey]) : ''}
-                    onChange={(e) =>
-                      setSettings((s) => ({ ...s, [intervalKey]: e.target.value }))
-                    }
-                    className="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-gray-500 focus:ring-gray-500"
-                  />
-                  <button
-                    onClick={() => handleSaveSetting(intervalKey, settings[intervalKey] as string | number)}
-                    className="px-3 py-1.5 bg-gray-900 text-white text-sm rounded-md hover:bg-gray-800 transition-colors"
-                  >
-                    Save
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Manual Triggers */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Manual Ingestion
-        </h2>
-        <div className="flex flex-wrap gap-3">
-          {SOURCES.map((src) => {
-            const isActive = status.some(
-              (s) => s.source === src && (s.status === 'running' || s.status === 'pending'),
-            );
-            return (
-              <button
-                key={src}
-                disabled={triggering !== null || cancelling !== null}
-                onClick={() => (isActive ? handleCancel(src) : handleTrigger(src))}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors disabled:opacity-50 ${
-                  isActive
-                    ? 'bg-red-50 border border-red-300 text-red-700 hover:bg-red-100'
-                    : 'bg-white border border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                {cancelling === src
-                  ? 'Cancelling...'
-                  : isActive
-                  ? `Cancel ${src.toUpperCase()}`
-                  : `Run ${src.toUpperCase()}`}
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2 className="panel-title">Data sources</h2>
+            <p className="panel-subtitle">Scheduled ingestion, latest run and manual controls for each vulnerability source.</p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => fetchIngestionStatus().then(setStatus).catch(console.error)} className="btn-secondary btn-sm">
+              Refresh
+            </button>
+            {anyActive ? (
+              <button disabled={cancelling !== null} onClick={() => handleCancel('all')} className="btn-danger btn-sm">
+                {cancelling === 'all' ? 'Cancelling…' : 'Cancel all'}
               </button>
-            );
-          })}
-          {status.some((s) => s.status === 'running' || s.status === 'pending') ? (
-            <button
-              disabled={cancelling !== null}
-              onClick={() => handleCancel('all')}
-              className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
-            >
-              {cancelling === 'all' ? 'Cancelling...' : 'Cancel All'}
-            </button>
-          ) : (
-            <button
-              disabled={triggering !== null}
-              onClick={() => handleTrigger('all')}
-              className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 disabled:opacity-50 transition-colors"
-            >
-              {triggering === 'all' ? 'Running...' : 'Run All'}
-            </button>
-          )}
+            ) : (
+              <button disabled={triggering !== null} onClick={() => handleTrigger('all')} className="btn-primary btn-sm">
+                {triggering === 'all' ? 'Starting…' : 'Run all sources'}
+              </button>
+            )}
+          </div>
         </div>
-      </div>
-
-      {/* Latest Status */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Latest Ingestion Status
-          </h2>
-          <button
-            onClick={() =>
-              fetchIngestionStatus().then(setStatus).catch(console.error)
-            }
-            className="text-sm text-gray-500 hover:text-gray-900"
-          >
-            Refresh
-          </button>
-        </div>
-        {status.length === 0 ? (
-          <p className="text-sm text-gray-400">
-            No ingestion runs yet. Trigger one above.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead>
-                <tr className="border-b border-gray-200 text-xs text-gray-500 uppercase">
-                  <th className="px-3 py-2">Source</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Started</th>
-                  <th className="px-3 py-2">Finished</th>
-                  <th className="px-3 py-2 text-right">Processed</th>
-                  <th className="px-3 py-2 text-right">Created</th>
-                  <th className="px-3 py-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {status.map((s) => (
-                  <tr key={s.source} className="border-b border-gray-100">
-                    <td className="px-3 py-2 font-medium">{s.source.toUpperCase()}</td>
-                    <td className="px-3 py-2">
-                      <StatusBadge status={s.status} />
-                      {s.status === 'running' && s.progress != null && (
-                        <ProgressBar progress={s.progress} />
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-gray-500">{fmtDt(s.started_at)}</td>
-                    <td className="px-3 py-2 text-gray-500">{fmtDt(s.finished_at)}</td>
-                    <td className="px-3 py-2 text-right font-mono">
-                      {s.records_processed?.toLocaleString() ?? '\u2014'}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono">
-                      {s.records_created?.toLocaleString() ?? '\u2014'}
-                    </td>
-                    <td className="px-3 py-2">
-                      {(s.status === 'running' || s.status === 'pending') && (
+        <div className="overflow-x-auto">
+          <table className="data-table w-full">
+            <thead>
+              <tr>
+                <th>Source</th>
+                <th>Schedule</th>
+                <th>Last run</th>
+                <th>Started</th>
+                <th>Finished</th>
+                <th className="!text-right">Processed</th>
+                <th className="!text-right">Created</th>
+                <th className="!text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {SOURCES.map((src) => {
+                const intervalKey = SCHEDULE_KEYS[src];
+                const enabledRaw = settings[ENABLED_KEYS[src]];
+                const isEnabled = enabledRaw === undefined ? true : enabledRaw !== false && enabledRaw !== 'false';
+                const last = status.find((item) => item.source === src);
+                const isActive = last?.status === 'running' || last?.status === 'pending';
+                return (
+                  <tr key={src} className="align-middle">
+                    <td className="font-mono font-semibold text-gray-900">{src.toUpperCase()}</td>
+                    <td>
+                      <div className="flex items-center gap-2">
                         <button
-                          disabled={cancelling !== null}
-                          onClick={() => handleCancel(s.source)}
-                          className="px-2 py-0.5 text-xs font-medium rounded border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                          onClick={() => handleToggleEnabled(src)}
+                          role="switch"
+                          aria-checked={isEnabled}
+                          aria-label={`Scheduled ${src.toUpperCase()} ingestion`}
+                          title={isEnabled ? 'Disable scheduled ingestion' : 'Enable scheduled ingestion'}
+                          className={`relative inline-flex h-4 w-7 shrink-0 items-center border transition-colors ${isEnabled ? 'border-accent-700 bg-accent-700' : 'border-gray-400 bg-gray-200'}`}
                         >
-                          {cancelling === s.source ? '…' : 'Cancel'}
+                          <span className={`inline-block h-2.5 w-2.5 bg-white transition-transform ${isEnabled ? 'translate-x-[14px]' : 'translate-x-0.5'}`} />
                         </button>
-                      )}
+                        <span className="text-xs text-gray-500">every</span>
+                        <input
+                          type="number"
+                          min="1"
+                          aria-label={`${src.toUpperCase()} interval in hours`}
+                          value={settings[intervalKey] != null ? String(settings[intervalKey]) : ''}
+                          onChange={(e) => setSettings((s) => ({ ...s, [intervalKey]: e.target.value }))}
+                          className="field w-16 py-0.5 text-right font-mono"
+                        />
+                        <span className="text-xs text-gray-500">h</span>
+                        <button onClick={() => handleSaveSetting(intervalKey, settings[intervalKey] as string | number)} className="btn-secondary btn-sm">
+                          Save
+                        </button>
+                      </div>
+                    </td>
+                    <td>
+                      {last ? <StatusBadge status={last.status} /> : <span className="text-gray-400">Never run</span>}
+                      {last?.status === 'running' && last.progress != null && <ProgressBar progress={last.progress} />}
+                    </td>
+                    <td className="whitespace-nowrap font-mono text-xs text-gray-600">{fmtDt(last?.started_at)}</td>
+                    <td className="whitespace-nowrap font-mono text-xs text-gray-600">{fmtDt(last?.finished_at)}</td>
+                    <td className="text-right font-mono">{last?.records_processed?.toLocaleString() ?? '\u2014'}</td>
+                    <td className="text-right font-mono">{last?.records_created?.toLocaleString() ?? '\u2014'}</td>
+                    <td className="text-right">
+                      <button
+                        disabled={triggering !== null || cancelling !== null}
+                        onClick={() => (isActive ? handleCancel(src) : handleTrigger(src))}
+                        className={isActive ? 'btn-danger btn-sm' : 'btn-secondary btn-sm'}
+                      >
+                        {cancelling === src ? 'Cancelling…' : isActive ? 'Cancel' : 'Run now'}
+                      </button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-      {/* Ingestion Logs */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Ingestion Logs
-        </h2>
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2 className="panel-title">Ingestion log</h2>
+            <p className="panel-subtitle">Every scheduled and manual run, most recent first.</p>
+          </div>
+        </div>
         {logs.items.length === 0 ? (
-          <p className="text-sm text-gray-400">No logs yet.</p>
+          <p className="px-4 py-8 text-center text-[13px] text-gray-500">No ingestion runs yet.</p>
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
+              <table className="data-table w-full">
                 <thead>
-                  <tr className="border-b border-gray-200 text-xs text-gray-500 uppercase">
-                    <th className="px-3 py-2">Source</th>
-                    <th className="px-3 py-2">Trigger</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Started</th>
-                    <th className="px-3 py-2 text-right">Processed</th>
-                    <th className="px-3 py-2">Error</th>
+                  <tr>
+                    <th>Source</th>
+                    <th>Trigger</th>
+                    <th>Status</th>
+                    <th>Started</th>
+                    <th className="!text-right">Processed</th>
+                    <th>Error</th>
                   </tr>
                 </thead>
                 <tbody>
                   {logs.items.map((log) => (
-                    <tr key={log.id} className="border-b border-gray-100">
-                      <td className="px-3 py-2 font-medium">
-                        {log.source.toUpperCase()}
-                      </td>
-                      <td className="px-3 py-2 text-gray-500">
-                        {log.trigger_type}
-                      </td>
-                      <td className="px-3 py-2">
-                        <StatusBadge status={log.status} />
-                      </td>
-                      <td className="px-3 py-2 text-gray-500">
-                        {fmtDt(log.started_at)}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono">
-                        {log.records_processed?.toLocaleString() ?? '\u2014'}
-                      </td>
-                      <td className="px-3 py-2 max-w-xs">
+                    <tr key={log.id}>
+                      <td className="font-mono font-semibold text-gray-900">{log.source.toUpperCase()}</td>
+                      <td className="text-gray-600">{log.trigger_type}</td>
+                      <td><StatusBadge status={log.status} /></td>
+                      <td className="whitespace-nowrap font-mono text-xs text-gray-600">{fmtDt(log.started_at)}</td>
+                      <td className="text-right font-mono">{log.records_processed?.toLocaleString() ?? '\u2014'}</td>
+                      <td className="max-w-xs">
                         {log.error_message ? (
                           <button
                             onClick={() => setErrorModal(log.error_message!)}
-                            className="text-red-600 text-xs truncate block max-w-xs text-left hover:underline cursor-pointer"
-                            title="Click to view full error"
+                            className="block max-w-xs truncate text-left text-xs text-red-700 hover:underline"
+                            title="View full error"
                           >
                             {log.error_message}
                           </button>
@@ -511,30 +407,10 @@ export default function SettingsPanel() {
                 </tbody>
               </table>
             </div>
-            {/* Pagination */}
-            <div className="flex justify-between items-center mt-3 text-sm text-gray-500">
-              <span>{logs.total} total log{logs.total !== 1 ? 's' : ''}</span>
-              <div className="flex gap-2">
-                <button
-                  disabled={logPage <= 1}
-                  onClick={() => setLogPage((p) => p - 1)}
-                  className="px-2 py-1 border border-gray-300 rounded disabled:opacity-40"
-                >
-                  Prev
-                </button>
-                <span className="px-2 py-1">Page {logPage}</span>
-                <button
-                  disabled={logPage * 20 >= logs.total}
-                  onClick={() => setLogPage((p) => p + 1)}
-                  className="px-2 py-1 border border-gray-300 rounded disabled:opacity-40"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
+            <Pagination page={logPage} perPage={20} total={logs.total} onChange={setLogPage} />
           </>
         )}
-      </div>
+      </section>
     </div>
   );
 }

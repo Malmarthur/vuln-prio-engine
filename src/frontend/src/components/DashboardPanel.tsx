@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Play, RefreshCw, RotateCcw, Save, Server, ShieldAlert, SlidersHorizontal, Target } from 'lucide-react';
+import { Play, RefreshCw, RotateCcw, Save, Server, ShieldAlert, Target } from 'lucide-react';
 import {
   AssetScoringProfile,
   AssetStats,
@@ -36,7 +36,8 @@ import { getErrorMessage } from '../lib/utils';
 import AddMetricButton from './scoring/AddMetricButton';
 import MetricCard from './scoring/MetricCard';
 import MetricEditModal from './scoring/MetricEditModal';
-import { HorizontalBar, PRIORITY_COLORS } from './scoring/helpers';
+import { HorizontalBar } from './scoring/helpers';
+import { PriorityBadge, priorityBarClass, priorityHex, priorityTier } from '../lib/priority';
 import ProfileManager from './ProfileManager';
 
 const VULN_PRIORITIES = ['V0', 'V1', 'V2', 'V3'] as const;
@@ -50,20 +51,6 @@ const ASSET_WEIGHT_LABELS: Record<keyof AssetScoringProfile['weights'], string> 
 const FINDING_WEIGHT_LABELS: Record<keyof FindingScoringProfile['weights'], string> = {
   vulnerability_priority: 'Vulnerability score',
   asset_priority: 'Asset score',
-};
-const PRIORITY_HEX_COLORS: Record<string, string> = {
-  V0: '#ef4444',
-  V1: '#f97316',
-  V2: '#facc15',
-  V3: '#22c55e',
-  A0: '#ef4444',
-  A1: '#f97316',
-  A2: '#facc15',
-  A3: '#22c55e',
-  P0: '#ef4444',
-  P1: '#f97316',
-  P2: '#facc15',
-  P3: '#22c55e',
 };
 const VALUE_LABELS = {
   internet_exposure: 'Exposure',
@@ -349,16 +336,15 @@ export default function DashboardPanel() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-28 animate-pulse rounded-lg border border-gray-200 bg-white" />
-        <div className="h-72 animate-pulse rounded-lg border border-gray-200 bg-white" />
-        <div className="h-72 animate-pulse rounded-lg border border-gray-200 bg-white" />
+        <div className="panel h-28 animate-pulse" />
+        <div className="panel h-72 animate-pulse" />
       </div>
     );
   }
 
   if (!profile || !assetProfile || !findingProfile || !eligibleColumns) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+      <div className="notice-error">
         Failed to load dashboard: {error ?? 'missing scoring metadata'}
       </div>
     );
@@ -368,33 +354,13 @@ export default function DashboardPanel() {
   const editingMeta = editingColumn ? eligibleColumns[editingColumn] : null;
   const busy = saving || computingVulns || computingAssets || computingFindings;
 
-  const workspaceToolbar = (
-    <section className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-        <label className="flex items-center gap-2 text-sm text-gray-600">Active preset
-          <select value={presets.find((item) => item.is_active)?.id ?? ''} onChange={(event) => handleActivatePreset(event.target.value)} className="rounded-md border-gray-300 text-sm">
-            {presets.map((item) => <option key={item.id} value={item.id}>{item.name}{item.is_builtin ? ' · built-in' : ''}</option>)}
-          </select>
-        </label>
-      </div>
-    </section>
-  );
-
   return (
-    <div className="space-y-5">
-      {workspaceToolbar}
-      <ProfileManager
-        activePreset={presets.find((item) => item.is_active)}
-        onChanged={async () => setPresets(await fetchScoringPresets())}
-      />
-      {msg && <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">{msg}</div>}
-      {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-
-      <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div className="space-y-4">
+      <section className="panel">
+        <div className="panel-header">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Prioritization cockpit</h2>
-            <p className="text-sm text-gray-500">Vulnerabilities and assets are scored independently before they combine into finding priority.</p>
+            <h2 className="panel-title">Scoring configuration</h2>
+            <p className="panel-subtitle">Vulnerabilities and assets are scored independently, then combined into finding priority.</p>
           </div>
           <ToolbarActions
             busy={busy}
@@ -404,20 +370,40 @@ export default function DashboardPanel() {
             onRefresh={() => load().catch((e) => setError(getErrorMessage(e)))}
           />
         </div>
+        <div className="grid gap-4 p-4 xl:grid-cols-[240px_minmax(0,1fr)]">
+          <label className="block">
+            <span className="label-caps">Active preset</span>
+            <select
+              value={presets.find((item) => item.is_active)?.id ?? ''}
+              onChange={(event) => handleActivatePreset(event.target.value)}
+              className="field mt-1.5 block w-full"
+            >
+              {presets.map((item) => <option key={item.id} value={item.id}>{item.name}{item.is_builtin ? ' · built-in' : ''}</option>)}
+            </select>
+            <span className="mt-1.5 block text-xs text-gray-500">Used by the inventory views and default scoring runs.</span>
+          </label>
+          <ProfileManager
+            activePreset={presets.find((item) => item.is_active)}
+            onChanged={async () => setPresets(await fetchScoringPresets())}
+          />
+        </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
+      {msg && <div className="notice-info" role="status">{msg}</div>}
+      {error && <div className="notice-error" role="alert">{error}</div>}
+
+      <section className="grid items-start gap-4 xl:grid-cols-2 2xl:grid-cols-3">
         <StageCard
-          step="Stage 1"
-          icon={<ShieldAlert className="h-5 w-5" />}
+          step={1}
+          icon={<ShieldAlert className="h-4 w-4" />}
           title="Vulnerabilities"
           description="Score CVEs from vulnerability intelligence before matching them to assets."
           action={
             <StageActionButton
               busy={busy}
               computing={computingVulns}
-              icon={<Play className="h-4 w-4" />}
-              loadingLabel="Scoring CVEs..."
+              icon={<Play className="h-3.5 w-3.5" />}
+              loadingLabel="Scoring CVEs…"
               label="Compute CVE scores"
               onClick={handleComputeVulns}
             />
@@ -425,9 +411,9 @@ export default function DashboardPanel() {
         >
           <StageMetricGrid>
             <StageMetric label="Total CVEs" value={vulnStats?.total} />
-            <StageMetric label="KEV exploited" value={vulnStats?.kev_count} tone="red" />
-            <StageMetric label="Scored CVEs" value={distribution?.scored_count} tone="green" />
-            <StageMetric label="Unscored CVEs" value={distribution?.unscored_count} tone="muted" />
+            <StageMetric label="KEV exploited" value={vulnStats?.kev_count} tone="critical" />
+            <StageMetric label="Scored" value={distribution?.scored_count} />
+            <StageMetric label="Unscored" value={distribution?.unscored_count} tone="muted" />
           </StageMetricGrid>
 
           <PriorityDistribution title="Vulnerability priority" levels={VULN_PRIORITIES} counts={distribution?.priority_counts ?? {}} total={distribution?.scored_count ?? 0} />
@@ -436,12 +422,12 @@ export default function DashboardPanel() {
             title="Scoring metrics"
             description="Edit the source metrics and recompute CVE priority levels."
             aside={
-              <span className={`font-mono text-sm font-medium ${weightWarning ? 'text-amber-600' : 'text-gray-900'}`}>
+              <span className={`font-mono text-[13px] font-semibold ${weightWarning ? 'text-amber-700' : 'text-gray-900'}`}>
                 {totalWeight.toFixed(1)}%
               </span>
             }
           >
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 gap-2">
               {topLevelCols.map((col) => {
                 const cfg = profile.columns[col];
                 const meta = eligibleColumns[col];
@@ -465,20 +451,20 @@ export default function DashboardPanel() {
             </div>
           </StageSection>
 
-          <ThresholdEditor title="Vulnerability thresholds" levels={VULN_PRIORITIES} thresholds={profile.thresholds} onChange={updateThreshold} compact />
+          <ThresholdEditor title="Vulnerability thresholds" levels={VULN_PRIORITIES} thresholds={profile.thresholds} onChange={updateThreshold} />
         </StageCard>
 
         <StageCard
-          step="Stage 2"
-          icon={<Server className="h-5 w-5" />}
+          step={2}
+          icon={<Server className="h-4 w-4" />}
           title="Assets"
-          description="Prioritize inventory context from exposure, criticality, and remediation complexity."
+          description="Prioritize inventory context from exposure, criticality and remediation complexity."
           action={
             <StageActionButton
               busy={busy}
               computing={computingAssets}
-              icon={<Server className="h-4 w-4" />}
-              loadingLabel="Scoring assets..."
+              icon={<Play className="h-3.5 w-3.5" />}
+              loadingLabel="Scoring assets…"
               label="Compute asset scores"
               onClick={handleComputeAssets}
             />
@@ -486,9 +472,9 @@ export default function DashboardPanel() {
         >
           <StageMetricGrid>
             <StageMetric label="Total assets" value={assetStats?.total_assets} />
-            <StageMetric label="Scored assets" value={assetStats?.scored_assets} tone="green" />
-            <StageMetric label="A0 assets" value={assetStats?.priority_distribution.A0 ?? 0} tone="red" />
-            <StageMetric label="Internet-facing" value={assetStats?.exposure_distribution.internet ?? 0} tone="orange" />
+            <StageMetric label="Scored" value={assetStats?.scored_assets} />
+            <StageMetric label="A0 assets" value={assetStats?.priority_distribution.A0 ?? 0} tone="critical" />
+            <StageMetric label="Internet-facing" value={assetStats?.exposure_distribution.internet ?? 0} tone="high" />
           </StageMetricGrid>
 
           <PriorityDistribution title="Asset priority" levels={ASSET_PRIORITIES} counts={assetStats?.priority_distribution ?? {}} total={assetStats?.scored_assets ?? 0} />
@@ -500,7 +486,6 @@ export default function DashboardPanel() {
                   key={key}
                   label={ASSET_WEIGHT_LABELS[key]}
                   source={key}
-                  badge="asset metric"
                   value={assetProfile.weights[key]}
                   onChange={(value) => updateAssetWeight(key, value)}
                 />
@@ -509,7 +494,7 @@ export default function DashboardPanel() {
           </StageSection>
 
           <StageSection title="Metric values" description="Map asset inventory labels onto the scoring scale.">
-            <div className="space-y-3">
+            <div className="space-y-2">
               {(Object.keys(assetProfile.values) as Array<keyof AssetScoringProfile['values']>).map((group) => (
                 <ValueGroup
                   key={group}
@@ -521,20 +506,20 @@ export default function DashboardPanel() {
             </div>
           </StageSection>
 
-          <ThresholdEditor title="Asset thresholds" levels={ASSET_PRIORITIES} thresholds={assetProfile.thresholds} onChange={updateAssetThreshold} compact />
+          <ThresholdEditor title="Asset thresholds" levels={ASSET_PRIORITIES} thresholds={assetProfile.thresholds} onChange={updateAssetThreshold} />
         </StageCard>
 
         <StageCard
-          step="Stage 3"
-          icon={<Target className="h-5 w-5" />}
+          step={3}
+          icon={<Target className="h-4 w-4" />}
           title="Findings"
           description="Combine vulnerability and asset priority into the final remediation queue."
           action={
             <StageActionButton
               busy={busy}
               computing={computingFindings}
-              icon={<Target className="h-4 w-4" />}
-              loadingLabel="Scoring findings..."
+              icon={<Play className="h-3.5 w-3.5" />}
+              loadingLabel="Scoring findings…"
               label="Compute finding scores"
               onClick={handleComputeFindings}
             />
@@ -542,9 +527,9 @@ export default function DashboardPanel() {
         >
           <StageMetricGrid>
             <StageMetric label="Total findings" value={findingStats?.total_findings} />
-            <StageMetric label="Scored findings" value={findingStats?.scored_findings} tone="green" />
-            <StageMetric label="P0 findings" value={findingStats?.priority_distribution.P0 ?? 0} tone="red" />
-            <StageMetric label="Internet-exposed" value={findingStats?.exposure_distribution.internet ?? 0} tone="orange" />
+            <StageMetric label="Scored" value={findingStats?.scored_findings} />
+            <StageMetric label="P0 findings" value={findingStats?.priority_distribution.P0 ?? 0} tone="critical" />
+            <StageMetric label="Internet-exposed" value={findingStats?.exposure_distribution.internet ?? 0} tone="high" />
           </StageMetricGrid>
 
           <PriorityDistribution title="Finding priority" levels={FINDING_PRIORITIES} counts={findingStats?.priority_distribution ?? {}} total={findingStats?.scored_findings ?? 0} />
@@ -556,7 +541,6 @@ export default function DashboardPanel() {
                   key={key}
                   label={FINDING_WEIGHT_LABELS[key]}
                   source={key}
-                  badge="finding metric"
                   value={findingProfile.weights[key]}
                   onChange={(value) => updateFindingWeight(key, value)}
                 />
@@ -564,7 +548,7 @@ export default function DashboardPanel() {
             </WeightMetricGrid>
           </StageSection>
 
-          <ThresholdEditor title="Finding thresholds" levels={FINDING_PRIORITIES} thresholds={findingProfile.thresholds} onChange={updateFindingThreshold} compact />
+          <ThresholdEditor title="Finding thresholds" levels={FINDING_PRIORITIES} thresholds={findingProfile.thresholds} onChange={updateFindingThreshold} />
         </StageCard>
       </section>
 
@@ -598,25 +582,25 @@ function ToolbarActions({ busy, saving, onSave, onReset, onRefresh }: {
   onRefresh: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-      <button onClick={onRefresh} disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50">
-        <RefreshCw className="h-4 w-4" />
+    <div className="flex flex-wrap items-center gap-2">
+      <button onClick={onRefresh} disabled={busy} className="btn-secondary btn-sm">
+        <RefreshCw className="h-3.5 w-3.5" />
         Refresh
       </button>
-      <button onClick={onSave} disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50">
-        <Save className="h-4 w-4" />
-        {saving ? 'Saving...' : 'Save profiles'}
+      <button onClick={onSave} disabled={busy} className="btn-secondary btn-sm">
+        <Save className="h-3.5 w-3.5" />
+        {saving ? 'Saving…' : 'Save profiles'}
       </button>
-      <button onClick={onReset} disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50">
-        <RotateCcw className="h-4 w-4" />
-        Reset profiles
+      <button onClick={onReset} disabled={busy} className="btn-danger btn-sm">
+        <RotateCcw className="h-3.5 w-3.5" />
+        Reset
       </button>
     </div>
   );
 }
 
 function StageCard({ step, icon, title, description, action, children }: {
-  step: string;
+  step: number;
   icon: React.ReactNode;
   title: string;
   description: string;
@@ -624,19 +608,21 @@ function StageCard({ step, icon, title, description, action, children }: {
   children: React.ReactNode;
 }) {
   return (
-    <article className="flex min-w-0 flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="flex min-h-[94px] flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-gray-500">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-gray-900 text-white">{icon}</span>
-            {step}
+    <article className="panel flex min-w-0 flex-col">
+      <div className="panel-header">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center bg-gray-800 text-white">{icon}</span>
+          <div className="min-w-0">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Stage {step}</div>
+            <h3 className="panel-title leading-tight">{title}</h3>
           </div>
-          <h3 className="text-base font-semibold text-gray-900">{title}</h3>
-          <p className="mt-1 text-sm leading-5 text-gray-500">{description}</p>
         </div>
         <div className="shrink-0">{action}</div>
       </div>
-      {children}
+      <div className="flex flex-col gap-4 p-4">
+        <p className="text-[13px] leading-5 text-gray-600">{description}</p>
+        {children}
+      </div>
     </article>
   );
 }
@@ -650,7 +636,7 @@ function StageActionButton({ busy, computing, icon, loadingLabel, label, onClick
   onClick: () => void;
 }) {
   return (
-    <button onClick={onClick} disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:opacity-50 sm:w-auto">
+    <button onClick={onClick} disabled={busy} className="btn-primary btn-sm">
       {computing ? <Spinner /> : icon}
       {computing ? loadingLabel : label}
     </button>
@@ -659,55 +645,51 @@ function StageActionButton({ busy, computing, icon, loadingLabel, label, onClick
 
 function StageMetricGrid({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-2 border-l border-t border-gray-200 sm:grid-cols-4">
       {children}
     </div>
   );
 }
 
-function StageMetric({ label, value, tone = 'neutral' }: { label: string; value: number | undefined; tone?: 'neutral' | 'red' | 'orange' | 'green' | 'muted' }) {
+function StageMetric({ label, value, tone = 'neutral' }: { label: string; value: number | undefined; tone?: 'neutral' | 'critical' | 'high' | 'muted' }) {
   const toneClass = {
-    neutral: 'bg-gray-50 text-gray-900',
-    red: 'bg-red-50 text-red-700',
-    orange: 'bg-orange-50 text-orange-700',
-    green: 'bg-green-50 text-green-700',
-    muted: 'bg-gray-100 text-gray-500',
+    neutral: 'text-gray-900',
+    critical: 'text-red-700',
+    high: 'text-orange-700',
+    muted: 'text-gray-400',
   }[tone];
+  const marker = { critical: 'bg-red-500', high: 'bg-orange-500' }[tone as 'critical' | 'high'];
 
   return (
-    <div className={`min-w-0 rounded-md px-3 py-2 ${toneClass}`}>
-      <div className="truncate text-[11px] font-medium uppercase text-gray-500">{label}</div>
-      <div className="mt-0.5 truncate text-lg font-semibold tabular-nums">{formatNumber(value)}</div>
+    <div className="relative min-w-0 border-b border-r border-gray-200 px-3 py-2">
+      {marker && <span className={`absolute inset-y-0 left-0 w-[3px] ${marker}`} aria-hidden="true" />}
+      <div className="label-caps truncate !text-[10px]">{label}</div>
+      <div className={`mt-0.5 truncate text-[17px] font-semibold tabular-nums ${toneClass}`}>{formatNumber(value)}</div>
     </div>
   );
 }
 
 function WeightMetricGrid({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-1 gap-3">
+    <div className="grid grid-cols-1 gap-2">
       {children}
     </div>
   );
 }
 
-function WeightMetricCard({ label, source, badge, value, onChange }: {
+function WeightMetricCard({ label, source, value, onChange }: {
   label: string;
   source: string;
-  badge: string;
   value: number;
   onChange: (value: number) => void;
 }) {
   return (
-    <label className="block rounded-lg border border-gray-300 bg-white p-3 transition-all hover:border-gray-400 hover:shadow-md focus-within:ring-2 focus-within:ring-gray-300">
-      <div className="mb-1.5 flex items-start justify-between gap-2">
-        <span className="text-sm font-medium leading-tight text-gray-900">{label}</span>
-        <span className="inline-block rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">
-          {badge}
-        </span>
-      </div>
-      <div className="mb-2 truncate font-mono text-xs text-gray-400">{source}</div>
-      <div className="flex items-center justify-between gap-3">
-        <span className="font-mono text-xs text-gray-700">{value}%</span>
+    <label className="flex items-center justify-between gap-3 border border-gray-300 bg-white px-3 py-2 transition-colors hover:border-gray-400 focus-within:border-accent-500">
+      <span className="min-w-0">
+        <span className="block text-[13px] font-medium leading-tight text-gray-900">{label}</span>
+        <span className="block truncate font-mono text-[11px] text-gray-400">{source}</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-1.5">
         <input
           aria-label={`${label} weight`}
           type="number"
@@ -715,9 +697,10 @@ function WeightMetricCard({ label, source, badge, value, onChange }: {
           step="1"
           value={value}
           onChange={(event) => onChange(Number(event.target.value))}
-          className="w-20 rounded-md border-gray-300 text-right text-sm focus:border-gray-500 focus:ring-gray-500"
+          className="field w-16 py-1 text-right font-mono"
         />
-      </div>
+        <span className="font-mono text-xs text-gray-500">%</span>
+      </span>
     </label>
   );
 }
@@ -729,18 +712,15 @@ function StageSection({ title, description, aside, children }: {
   children: React.ReactNode;
 }) {
   return (
-    <div className="border-t border-gray-100 pt-4">
-      <div className="mb-3 flex items-start justify-between gap-3">
+    <div className="border-t border-gray-200 pt-4">
+      <div className="mb-2.5 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            {title === 'Scoring metrics' && <SlidersHorizontal className="h-4 w-4 text-gray-500" />}
-            <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
-          </div>
+          <h4 className="label-caps text-gray-700">{title}</h4>
           {description && <p className="mt-0.5 text-xs leading-5 text-gray-500">{description}</p>}
         </div>
         {aside && (
           <div className="shrink-0 text-right">
-            <div className="text-[11px] font-medium uppercase text-gray-500">Total weight</div>
+            <div className="label-caps !text-[10px]">Total weight</div>
             {aside}
           </div>
         )}
@@ -753,19 +733,18 @@ function StageSection({ title, description, aside, children }: {
 function PriorityDistribution({ title, levels, counts, total }: { title: string; levels: readonly string[]; counts: Record<string, number>; total: number }) {
   const max = Math.max(...levels.map((level) => counts[level] ?? 0), 1);
   return (
-    <div className="rounded-md border border-gray-100 bg-gray-50 p-3">
-      <div className="mb-3 flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <h4 className="label-caps text-gray-700">{title}</h4>
         <span className="text-xs text-gray-500">{total.toLocaleString()} scored</span>
       </div>
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {levels.map((level) => (
-          <div key={level} className="space-y-1">
-            <div className="flex justify-between text-xs text-gray-500">
-              <span className={`rounded px-1.5 py-0.5 font-semibold ${PRIORITY_COLORS[level].badge}`}>{level}</span>
-              <span>{total > 0 ? (((counts[level] ?? 0) / total) * 100).toFixed(1) : '0.0'}%</span>
-            </div>
-            <HorizontalBar value={counts[level] ?? 0} max={max} color={PRIORITY_COLORS[level].bar} />
+          <div key={level} className="grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_3rem] items-center gap-2 text-xs">
+            <PriorityBadge level={level} />
+            <HorizontalBar value={counts[level] ?? 0} max={max} color={priorityBarClass(level)} />
+            <span className="text-right font-mono text-gray-700">{(counts[level] ?? 0).toLocaleString()}</span>
+            <span className="text-right font-mono text-gray-500">{total > 0 ? (((counts[level] ?? 0) / total) * 100).toFixed(1) : '0.0'}%</span>
           </div>
         ))}
       </div>
@@ -773,12 +752,11 @@ function PriorityDistribution({ title, levels, counts, total }: { title: string;
   );
 }
 
-function ThresholdEditor({ title, levels, thresholds, onChange, compact = false }: {
+function ThresholdEditor({ title, levels, thresholds, onChange }: {
   title: string;
   levels: readonly string[];
   thresholds: Record<string, number>;
   onChange: (level: string, value: number) => void;
-  compact?: boolean;
 }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [draggingLevel, setDraggingLevel] = useState<string | null>(null);
@@ -792,7 +770,7 @@ function ThresholdEditor({ title, levels, thresholds, onChange, compact = false 
   const gradientStops = ascendingThresholds.map((item, index) => {
     const start = index === 0 ? 0 : ascendingThresholds[index].value;
     const end = index === ascendingThresholds.length - 1 ? 100 : ascendingThresholds[index + 1].value;
-    const color = PRIORITY_HEX_COLORS[item.level] ?? '#9ca3af';
+    const color = priorityHex(item.level);
     return `${color} ${start}% ${end}%`;
   });
   const gradient = `linear-gradient(to right, ${gradientStops.join(', ')})`;
@@ -831,10 +809,10 @@ function ThresholdEditor({ title, levels, thresholds, onChange, compact = false 
   }, [draggingLevel]);
 
   return (
-    <div className={compact ? '' : 'mt-4 border-t border-gray-100 pt-4'}>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="text-sm font-medium text-gray-700">{title}</h3>
-        <span className="text-xs text-gray-400">0-100</span>
+    <div className="border-t border-gray-200 pt-4">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h4 className="label-caps text-gray-700">{title}</h4>
+        <span className="font-mono text-[11px] text-gray-400">score 0–100</span>
       </div>
       <div className="relative h-20 select-none">
         <div
@@ -847,18 +825,18 @@ function ThresholdEditor({ title, levels, thresholds, onChange, compact = false 
             updateLevel(level, value);
           }}
         >
-          <div className="absolute left-0 right-0 top-0 flex justify-between text-[10px] font-medium text-gray-400">
+          <div className="absolute left-0 right-0 top-0 flex justify-between font-mono text-[10px] text-gray-400">
             <span>0</span>
             <span>100</span>
           </div>
-          <div className="absolute left-0 right-0 top-7 h-3 rounded-full border border-white shadow-inner ring-1 ring-gray-200" style={{ background: gradient }} />
+          <div className="absolute left-0 right-0 top-[30px] h-2 ring-1 ring-gray-300" style={{ background: gradient }} />
           {thresholdItems.map(({ level, value }) => {
             const handleStyle = {
-              backgroundColor: PRIORITY_HEX_COLORS[level] ?? '#111827',
-              color: level.endsWith('2') ? '#111827' : '#ffffff',
+              backgroundColor: priorityHex(level),
+              color: priorityTier(level) === 2 ? '#10141a' : '#ffffff',
               left: `${value}%`,
             };
-            const handleClass = 'absolute top-4 h-9 w-9 -translate-x-1/2 rounded-full border-2 text-[10px] font-semibold shadow-md';
+            const handleClass = 'absolute top-[21px] h-[26px] w-[30px] -translate-x-1/2 rounded-sm border-2 font-mono text-[10px] font-semibold shadow-md';
             const valueClass = 'absolute top-14 w-10 -translate-x-1/2 text-center font-mono text-xs';
 
             if (level === fixedBaselineLevel) {
@@ -866,7 +844,7 @@ function ThresholdEditor({ title, levels, thresholds, onChange, compact = false 
                 <div key={level}>
                   <span
                     aria-label={`${level} fixed threshold 0`}
-                    className={`${handleClass} inline-flex cursor-default items-center justify-center border-gray-950 ring-1 ring-gray-950`}
+                    className={`${handleClass} inline-flex cursor-default items-center justify-center border-white`}
                     style={handleStyle}
                     title={`${level} is fixed at 0`}
                     onPointerDown={(event) => event.stopPropagation()}
@@ -888,7 +866,7 @@ function ThresholdEditor({ title, levels, thresholds, onChange, compact = false 
                 <button
                   type="button"
                   aria-label={`${level} threshold ${value}`}
-                  className={`${handleClass} border-white transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2`}
+                  className={`${handleClass} cursor-ew-resize border-white focus:outline-none focus:ring-2 focus:ring-accent-600 focus:ring-offset-1`}
                   style={handleStyle}
                   onPointerDown={(event) => {
                     event.stopPropagation();
@@ -938,11 +916,11 @@ function ThresholdEditor({ title, levels, thresholds, onChange, compact = false 
 
 function ValueGroup({ title, values, onChange }: { title: string; values: Record<string, number>; onChange: (key: string, value: number) => void }) {
   return (
-    <div className="rounded-md border border-gray-100 bg-gray-50 p-3">
-      <div className="mb-2 text-xs font-medium uppercase text-gray-500">{title}</div>
+    <div className="border border-gray-200 bg-gray-50 px-3 py-2.5">
+      <div className="label-caps mb-2 !text-[10px]">{title}</div>
       <div className="grid grid-cols-2 gap-2">
         {Object.entries(values).map(([key, value]) => (
-          <label key={key} className="flex items-center justify-between gap-2 text-sm text-gray-700">
+          <label key={key} className="flex items-center justify-between gap-2 text-[13px] text-gray-700">
             <span className="truncate capitalize">{key.replace(/_/g, ' ')}</span>
             <input
               type="number"
@@ -951,7 +929,7 @@ function ValueGroup({ title, values, onChange }: { title: string; values: Record
               step="1"
               value={value}
               onChange={(event) => onChange(key, Number(event.target.value))}
-              className="w-16 rounded-md border-gray-300 text-right text-sm focus:border-gray-500 focus:ring-gray-500"
+              className="field w-16 py-0.5 text-right font-mono"
             />
           </label>
         ))}
@@ -961,7 +939,7 @@ function ValueGroup({ title, values, onChange }: { title: string; values: Record
 }
 
 function Spinner() {
-  return <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />;
+  return <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />;
 }
 
 function formatNumber(value: number | undefined): string {

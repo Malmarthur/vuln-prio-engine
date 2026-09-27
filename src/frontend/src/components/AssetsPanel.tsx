@@ -11,7 +11,9 @@ import {
 import { getErrorMessage } from '../lib/utils';
 import CompactKpi, { CompactKpiStrip } from './CompactKpi';
 import Pagination from './Pagination';
-import { PRIORITY_COLORS } from './scoring/helpers';
+import { ChevronRight } from 'lucide-react';
+import { PriorityBadge } from '../lib/priority';
+import StatusTag, { type StatusTone } from './StatusTag';
 
 const EXPOSURE_LABELS: Record<string, string> = {
   internet: 'Internet',
@@ -129,110 +131,109 @@ export default function AssetsPanel() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <CompactKpiStrip>
         <CompactKpi label="Assets" value={formatNumber(stats?.total_assets)} />
         <CompactKpi label="Components" value={formatNumber(stats?.total_components)} />
         <CompactKpi label="With CPE" value={formatNumber(stats?.components_with_cpe)} />
         <CompactKpi label="Scored" value={formatNumber(stats?.scored_assets)} />
-        <CompactKpi label="A0 assets" value={formatNumber(stats?.priority_distribution.A0 ?? 0)} tone="red" />
-        <CompactKpi label="Internet-facing" value={formatNumber(stats?.exposure_distribution.internet ?? 0)} tone="orange" />
-        <CompactKpi label="Critical assets" value={formatNumber(stats?.criticality_distribution.critical ?? 0)} tone="red" />
+        <CompactKpi label="A0 assets" value={formatNumber(stats?.priority_distribution.A0 ?? 0)} tone="critical" />
+        <CompactKpi label="Internet-facing" value={formatNumber(stats?.exposure_distribution.internet ?? 0)} tone="high" />
+        <CompactKpi label="Critical assets" value={formatNumber(stats?.criticality_distribution.critical ?? 0)} tone="critical" />
       </CompactKpiStrip>
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Assets</h2>
+      {msg && <div className="notice-info" role="status">{msg}</div>}
+      {error && <div className="notice-error whitespace-pre-line" role="alert">{error}</div>}
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2 className="panel-title">Asset inventory</h2>
+            <p className="panel-subtitle">Select a row to inspect its components, CPEs and product resolution.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={priority}
+              onChange={(event) => {
+                setPriority(event.target.value);
+                setPage(1);
+              }}
+              className="field py-1 text-xs"
+              aria-label="Filter by priority"
+            >
+              <option value="">All priorities</option>
+              {['A0', 'A1', 'A2', 'A3'].map((level) => <option key={level} value={level}>{level}</option>)}
+            </select>
+            <button type="button" onClick={handleResolution} disabled={resolving || importing} className="btn-secondary btn-sm">
+              {resolving ? 'Resolving products…' : 'Resolve products'}
+            </button>
+            <label className={`btn-primary btn-sm cursor-pointer ${importing ? 'pointer-events-none opacity-50' : ''}`}>
+              {importing && importProgress ? `Importing ${importProgress.current}/${importProgress.total}…` : 'Import CycloneDX JSON'}
+              <input type="file" accept="application/json,.json" className="hidden" onChange={handleFile} disabled={importing} multiple />
+            </label>
+          </div>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <select
-            value={priority}
-            onChange={(event) => {
-              setPriority(event.target.value);
-              setPage(1);
-            }}
-            className="rounded-md border-gray-300 text-sm focus:border-gray-500 focus:ring-gray-500"
-          >
-            <option value="">All priorities</option>
-            {['A0', 'A1', 'A2', 'A3'].map((level) => <option key={level} value={level}>{level}</option>)}
-          </select>
-          <label className="inline-flex items-center justify-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 cursor-pointer">
-            {importing && importProgress ? `Importing ${importProgress.current}/${importProgress.total}...` : 'Import CycloneDX JSON'}
-            <input type="file" accept="application/json,.json" className="hidden" onChange={handleFile} disabled={importing} multiple />
-          </label>
-          <button type="button" onClick={handleResolution} disabled={resolving || importing} className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-            {resolving ? 'Resolving products...' : 'Resolve products'}
-          </button>
+
+        <div className="overflow-x-auto">
+          <table className="data-table w-full">
+            <thead>
+              <tr>
+                {['Asset', 'Priority', 'Score', 'Confidence', 'Exposure', 'Criticality', 'Patch complexity', 'Components', 'CPEs'].map((label, index) => (
+                  <th key={label} className={index >= 2 && index <= 3 || index >= 7 ? '!text-right' : ''}>{label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={9} className="py-12 text-center text-gray-500">Loading…</td></tr>
+              ) : assets.length === 0 ? (
+                <tr><td colSpan={9} className="py-12 text-center text-gray-500">No assets imported yet.</td></tr>
+              ) : assets.map((asset) => {
+                const expanded = expandedAssetIds.includes(asset.id);
+                return (
+                  <Fragment key={asset.id}>
+                    <tr
+                      className={`cursor-pointer ${expanded ? 'bg-gray-50' : ''}`}
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={expanded}
+                      onClick={() => toggleAsset(asset.id)}
+                      onKeyDown={(event) => handleAssetKeyDown(event, asset.id)}
+                    >
+                      <td>
+                        <div className="flex items-start gap-2">
+                          <ChevronRight className={`mt-0.5 h-4 w-4 shrink-0 text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+                          <div className="min-w-0">
+                            <div className="font-medium text-gray-900">{asset.name}</div>
+                            <div className="truncate font-mono text-[11px] text-gray-500">{asset.external_id}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>{asset.priority_level ? <PriorityBadge level={asset.priority_level} /> : <span className="text-gray-400">—</span>}</td>
+                      <td className="text-right font-mono text-gray-800">{formatScore(asset.priority_score)}</td>
+                      <td className="text-right font-mono text-gray-500">{formatScore(asset.priority_confidence)}</td>
+                      <td className="text-gray-700">{EXPOSURE_LABELS[asset.internet_exposure] ?? asset.internet_exposure}</td>
+                      <td className="capitalize text-gray-700">{asset.business_criticality}</td>
+                      <td className="capitalize text-gray-700">{asset.patch_complexity}</td>
+                      <td className="text-right font-mono text-gray-700">{asset.component_count.toLocaleString()}</td>
+                      <td className="text-right font-mono text-gray-700">{asset.cpe_count.toLocaleString()}</td>
+                    </tr>
+                    {expanded && (
+                      <tr className="bg-gray-50 hover:!bg-gray-50">
+                        <td colSpan={9} className="!px-4 !py-4">
+                          <AssetComponents asset={asset} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      </div>
 
-      {msg && <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">{msg}</div>}
-      {error && <div className="whitespace-pre-line p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
-
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
-              {['Asset', 'Priority', 'Score', 'Confidence', 'Exposure', 'Criticality', 'Patch Complexity', 'Components', 'CPEs'].map((label) => (
-                <th key={label} className="px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  {label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={9} className="px-3 py-12 text-center text-gray-400">Loading...</td></tr>
-            ) : assets.length === 0 ? (
-              <tr><td colSpan={9} className="px-3 py-12 text-center text-gray-400">No assets imported yet.</td></tr>
-            ) : assets.map((asset) => (
-              <Fragment key={asset.id}>
-                <tr
-                  className={`cursor-pointer border-b border-gray-100 transition-colors ${
-                    expandedAssetIds.includes(asset.id) ? 'bg-gray-50' : 'hover:bg-gray-50'
-                  }`}
-                  role="button"
-                  tabIndex={0}
-                  aria-expanded={expandedAssetIds.includes(asset.id)}
-                  onClick={() => toggleAsset(asset.id)}
-                  onKeyDown={(event) => handleAssetKeyDown(event, asset.id)}
-                >
-                  <td className="px-3 py-3">
-                    <div className="flex items-start gap-2">
-                      <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-gray-300 text-xs font-semibold text-gray-500">
-                        {expandedAssetIds.includes(asset.id) ? '-' : '+'}
-                      </span>
-                      <div className="min-w-0">
-                        <div className="font-medium text-gray-900">{asset.name}</div>
-                        <div className="truncate text-xs text-gray-500">{asset.external_id}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-3 py-3 text-sm">
-                    <PriorityBadge level={asset.priority_level} />
-                  </td>
-                  <td className="px-3 py-3 text-sm font-mono text-gray-700">{formatScore(asset.priority_score)}</td>
-                  <td className="px-3 py-3 text-sm font-mono text-gray-700">{formatScore(asset.priority_confidence)}</td>
-                  <td className="px-3 py-3 text-sm text-gray-700">{EXPOSURE_LABELS[asset.internet_exposure] ?? asset.internet_exposure}</td>
-                  <td className="px-3 py-3 text-sm text-gray-700 capitalize">{asset.business_criticality}</td>
-                  <td className="px-3 py-3 text-sm text-gray-700 capitalize">{asset.patch_complexity}</td>
-                  <td className="px-3 py-3 text-sm text-gray-700">{asset.component_count.toLocaleString()}</td>
-                  <td className="px-3 py-3 text-sm text-gray-700">{asset.cpe_count.toLocaleString()}</td>
-                </tr>
-                {expandedAssetIds.includes(asset.id) && (
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <td colSpan={9} className="px-3 py-4">
-                      <AssetComponents asset={asset} />
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <Pagination page={page} perPage={25} total={total} onChange={setPage} />
+        <Pagination page={page} perPage={25} total={total} onChange={setPage} />
+      </section>
     </div>
   );
 }
@@ -240,7 +241,7 @@ export default function AssetsPanel() {
 function AssetComponents({ asset }: { asset: Asset }) {
   if (asset.components.length === 0) {
     return (
-      <div className="rounded-md border border-dashed border-gray-300 bg-white px-4 py-6 text-center text-sm text-gray-500">
+      <div className="border border-dashed border-gray-300 bg-white px-4 py-6 text-center text-[13px] text-gray-500">
         No components were imported for this asset.
       </div>
     );
@@ -250,24 +251,22 @@ function AssetComponents({ asset }: { asset: Asset }) {
     <div className="space-y-3">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900">Components and CPEs</h3>
+          <h3 className="label-caps text-gray-700">Components and CPEs</h3>
           <p className="text-xs text-gray-500">
             {asset.component_count.toLocaleString()} components, {asset.cpe_count.toLocaleString()} with CPE identifiers
           </p>
         </div>
-        <div className="text-xs text-gray-500">
+        <div className="font-mono text-xs text-gray-500">
           CPE coverage {asset.component_count === 0 ? '0.0' : ((asset.cpe_count / asset.component_count) * 100).toFixed(1)}%
         </div>
       </div>
 
-      <div className="max-h-96 overflow-auto rounded-md border border-gray-200 bg-white">
-        <table className="w-full text-left">
-          <thead className="sticky top-0 bg-white shadow-sm">
+      <div className="max-h-96 overflow-auto border border-gray-300 bg-white">
+        <table className="data-table w-full">
+          <thead className="sticky top-0">
             <tr>
-              {['Component', 'Version', 'Vendor / Product', 'Canonical Product', 'Resolution', 'CPE'].map((label) => (
-                <th key={label} className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  {label}
-                </th>
+              {['Component', 'Version', 'Vendor / product', 'Canonical product', 'Resolution', 'CPE'].map((label) => (
+                <th key={label}>{label}</th>
               ))}
             </tr>
           </thead>
@@ -284,35 +283,35 @@ function AssetComponents({ asset }: { asset: Asset }) {
 
 function ComponentRow({ component }: { component: AssetComponent }) {
   return (
-    <tr className="border-t border-gray-100 align-top">
-      <td className="px-3 py-2 text-sm">
+    <tr className="align-top">
+      <td>
         <div className="font-medium text-gray-900">{component.name}</div>
-        {component.bom_ref && <div className="max-w-xs truncate text-xs text-gray-500">{component.bom_ref}</div>}
-        {component.purl && <div className="max-w-xs truncate text-xs text-gray-500">{component.purl}</div>}
+        {component.bom_ref && <div className="max-w-xs truncate font-mono text-[11px] text-gray-500">{component.bom_ref}</div>}
+        {component.purl && <div className="max-w-xs truncate font-mono text-[11px] text-gray-500">{component.purl}</div>}
       </td>
-      <td className="px-3 py-2 text-sm text-gray-700">{component.version ?? '-'}</td>
-      <td className="px-3 py-2 text-sm text-gray-700">
+      <td className="font-mono text-gray-700">{component.version ?? '—'}</td>
+      <td className="text-gray-700">
         <div>{component.vendor ?? component.cpe_vendor ?? '-'}</div>
         <div className="text-xs text-gray-500">{component.product ?? component.cpe_product ?? '-'}</div>
       </td>
-      <td className="px-3 py-2 text-sm text-gray-700">
+      <td className="text-gray-700">
         {component.latest_resolution?.resolved_product ? (
           <div><div className="font-medium">{component.latest_resolution.resolved_product.key}</div><div className="text-xs text-gray-500">{component.latest_resolution.resolved_product.vendor} / {component.latest_resolution.resolved_product.canonical_name}</div></div>
-        ) : <span className="text-gray-400">-</span>}
+        ) : <span className="text-gray-400">—</span>}
       </td>
-      <td className="px-3 py-2 text-xs text-gray-700">
+      <td className="text-xs text-gray-700">
         <ResolutionCell component={component} />
       </td>
-      <td className="px-3 py-2 text-sm">
+      <td>
         {component.cpe ? (
           <div className="space-y-1">
-            <code className="block max-w-xl break-all rounded bg-gray-100 px-2 py-1 text-xs text-gray-800">
+            <code className="block max-w-xl break-all border border-gray-200 bg-gray-50 px-2 py-1 font-mono text-[11px] text-gray-800">
               {component.cpe}
             </code>
             <div className="flex flex-wrap gap-1 text-xs text-gray-500">
-              {component.cpe_vendor && <span className="rounded bg-gray-100 px-1.5 py-0.5">vendor: {component.cpe_vendor}</span>}
-              {component.cpe_product && <span className="rounded bg-gray-100 px-1.5 py-0.5">product: {component.cpe_product}</span>}
-              {component.cpe_version && <span className="rounded bg-gray-100 px-1.5 py-0.5">version: {component.cpe_version}</span>}
+              {component.cpe_vendor && <span className="border border-gray-200 px-1.5 font-mono text-[11px]">vendor: {component.cpe_vendor}</span>}
+              {component.cpe_product && <span className="border border-gray-200 px-1.5 font-mono text-[11px]">product: {component.cpe_product}</span>}
+              {component.cpe_version && <span className="border border-gray-200 px-1.5 font-mono text-[11px]">version: {component.cpe_version}</span>}
             </div>
           </div>
         ) : (
@@ -323,24 +322,25 @@ function ComponentRow({ component }: { component: AssetComponent }) {
   );
 }
 
+const RESOLUTION_TONES: Record<string, StatusTone> = { resolved: 'positive', ambiguous: 'warning', unknown: 'muted' };
+
 function ResolutionCell({ component }: { component: AssetComponent }) {
   const resolution = component.latest_resolution;
   if (!resolution) return <span className="text-gray-400">Not run</span>;
-  const color = resolution.status === 'resolved' ? 'bg-green-100 text-green-800' : resolution.status === 'ambiguous' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700';
-  return <div className="space-y-1"><span className={`rounded px-1.5 py-0.5 font-semibold ${color}`}>{resolution.status}</span>{resolution.confidence != null && <span className="ml-1 text-gray-500">{resolution.confidence}%</span>}{resolution.status === 'ambiguous' && <div className="max-w-xs text-gray-500">Candidates: {resolution.candidates.items.map((item) => item.product_key).join(', ')}</div>}<div className="max-w-xs text-gray-400">{resolution.evidence.signals.map((signal) => signal.kind).join(', ') || resolution.confidence_basis}</div></div>;
-}
-
-function PriorityBadge({ level }: { level: string | null }) {
-  if (!level) return <span className="text-gray-400">-</span>;
   return (
-    <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${PRIORITY_COLORS[level]?.badge ?? 'bg-gray-100 text-gray-600'}`}>
-      {level}
-    </span>
+    <div className="space-y-1">
+      <div className="flex items-center gap-1.5">
+        <StatusTag tone={RESOLUTION_TONES[resolution.status] ?? 'neutral'}>{resolution.status}</StatusTag>
+        {resolution.confidence != null && <span className="font-mono text-gray-500">{resolution.confidence}%</span>}
+      </div>
+      {resolution.status === 'ambiguous' && <div className="max-w-xs text-gray-600">Candidates: {resolution.candidates.items.map((item) => item.product_key).join(', ')}</div>}
+      <div className="max-w-xs font-mono text-[11px] text-gray-400">{resolution.evidence.signals.map((signal) => signal.kind).join(', ') || resolution.confidence_basis}</div>
+    </div>
   );
 }
 
 function formatScore(value: number | null): string {
-  return value == null ? '-' : value.toFixed(1);
+  return value == null ? '—' : value.toFixed(1);
 }
 
 function formatNumber(value: number | undefined): string {

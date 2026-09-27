@@ -1,34 +1,42 @@
 import { ReactNode } from 'react';
 
+type KpiTone = 'neutral' | 'critical' | 'high' | 'muted';
+
 interface CompactKpiProps {
   label: string;
   value: ReactNode;
   detail?: ReactNode;
-  tone?: 'neutral' | 'red' | 'orange' | 'blue' | 'green' | 'muted';
+  tone?: KpiTone;
+  className?: string;
 }
 
-const TONES: Record<NonNullable<CompactKpiProps['tone']>, string> = {
-  neutral: 'border-gray-200 bg-white text-gray-900',
-  red: 'border-red-100 bg-red-50 text-red-700',
-  orange: 'border-orange-100 bg-orange-50 text-orange-700',
-  blue: 'border-blue-100 bg-blue-50 text-blue-700',
-  green: 'border-green-100 bg-green-50 text-green-700',
-  muted: 'border-gray-200 bg-gray-100 text-gray-500',
+const VALUE_TONES: Record<KpiTone, string> = {
+  neutral: 'text-gray-900',
+  critical: 'text-red-700',
+  high: 'text-orange-700',
+  muted: 'text-gray-400',
 };
 
-export default function CompactKpi({ label, value, detail, tone = 'neutral' }: CompactKpiProps) {
+const MARKERS: Partial<Record<KpiTone, string>> = {
+  critical: 'bg-red-500',
+  high: 'bg-orange-500',
+};
+
+export default function CompactKpi({ label, value, detail, tone = 'neutral', className = '' }: CompactKpiProps) {
+  const marker = MARKERS[tone];
   return (
-    <div className={`min-w-0 rounded-md border px-3 py-2 ${TONES[tone]}`}>
-      <div className="truncate text-[11px] font-medium uppercase text-gray-500">{label}</div>
-      <div className="mt-0.5 truncate text-base font-semibold tabular-nums">{value}</div>
-      {detail && <div className="mt-0.5 truncate text-xs text-gray-500">{detail}</div>}
+    <div className={`relative min-w-0 border-b border-r border-gray-300 bg-white px-3 py-2 ${className}`}>
+      {marker && <span className={`absolute inset-y-0 left-0 w-[3px] ${marker}`} aria-hidden="true" />}
+      <div className="label-caps truncate !text-[10px]">{label}</div>
+      <div className={`mt-0.5 truncate text-[17px] font-semibold tabular-nums ${VALUE_TONES[tone]}`}>{value}</div>
+      {detail && <div className="truncate text-[11px] text-gray-500">{detail}</div>}
     </div>
   );
 }
 
 export function CompactKpiStrip({ children }: { children: ReactNode }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+    <div className="grid grid-cols-2 border-l border-t border-gray-300 sm:grid-cols-4 lg:grid-cols-7">
       {children}
     </div>
   );

@@ -24,6 +24,7 @@ export interface FilterParams {
 interface Column {
   key: string | null;
   label: string;
+  align?: 'right' | 'center';
   hideSmall?: boolean;
 }
 
@@ -31,11 +32,11 @@ const COLUMNS: Column[] = [
   { key: null, label: 'Identifier' },
   { key: null, label: 'Summary' },
   { key: null, label: 'Priority' },
-  { key: 'priority_score', label: 'Score' },
+  { key: 'priority_score', label: 'Score', align: 'right' },
   { key: null, label: 'Severity' },
-  { key: 'cvss_v31_score', label: 'CVSS' },
-  { key: 'epss_score', label: 'EPSS' },
-  { key: null, label: 'KEV' },
+  { key: 'cvss_v31_score', label: 'CVSS', align: 'right' },
+  { key: 'epss_score', label: 'EPSS', align: 'right' },
+  { key: null, label: 'KEV', align: 'center' },
   { key: 'published_date', label: 'Published', hideSmall: true },
 ];
 
@@ -88,30 +89,31 @@ export default function VulnTable() {
   }, []);
 
   return (
-    <>
+    <section className="panel">
+      <div className="panel-header">
+        <div>
+          <h2 className="panel-title">Vulnerability catalog</h2>
+          <p className="panel-subtitle">Priority (V0–V3) is Harmonia's score; severity is the raw CVSS rating from the source.</p>
+        </div>
+      </div>
       <Filters filters={params} onChange={setParams} />
 
-      {error && (
-        <div className="p-3 mb-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-          {error}
-        </div>
-      )}
+      {error && <div className="notice-error m-4">{error}</div>}
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
-        <table className="w-full text-left">
+      <div className="overflow-x-auto">
+        <table className="data-table w-full">
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
+            <tr>
               {COLUMNS.map((c) => (
                 <th
                   key={c.label}
                   onClick={() => handleSort(c.key)}
-                  className={`px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider ${
-                    c.key ? 'cursor-pointer select-none hover:text-gray-900' : ''
-                  } ${c.hideSmall ? 'hidden md:table-cell' : ''}`}
+                  aria-sort={c.key && params.sort_by === c.key ? (params.sort_order === 'asc' ? 'ascending' : 'descending') : undefined}
+                  className={`${c.key ? 'cursor-pointer select-none hover:text-gray-900' : ''} ${c.align === 'right' ? '!text-right' : c.align === 'center' ? '!text-center' : ''} ${c.hideSmall ? 'hidden md:table-cell' : ''}`}
                 >
                   {c.label}
                   {c.key && params.sort_by === c.key && (
-                    <span className="ml-1">
+                    <span className="ml-1 text-accent-700">
                       {params.sort_order === 'asc' ? '\u25B2' : '\u25BC'}
                     </span>
                   )}
@@ -122,21 +124,14 @@ export default function VulnTable() {
           <tbody>
             {loading ? (
               <tr>
-                <td
-                  colSpan={COLUMNS.length}
-                  className="px-3 py-12 text-center text-gray-400"
-                >
-                  Loading...
+                <td colSpan={COLUMNS.length} className="py-12 text-center text-gray-500">
+                  Loading…
                 </td>
               </tr>
             ) : data.items.length === 0 ? (
               <tr>
-                <td
-                  colSpan={COLUMNS.length}
-                  className="px-3 py-12 text-center text-gray-400"
-                >
-                  No vulnerabilities found. Try adjusting filters or trigger an
-                  ingestion from Settings.
+                <td colSpan={COLUMNS.length} className="py-12 text-center text-gray-500">
+                  No vulnerabilities found. Adjust the filters or run an ingestion from Settings.
                 </td>
               </tr>
             ) : (
@@ -151,8 +146,8 @@ export default function VulnTable() {
                       onToggle={handleToggle}
                     />
                     {expandedCve === rowKey && vuln.cve_id && (
-                      <tr>
-                        <td colSpan={COLUMNS.length} className="p-0">
+                      <tr className="hover:!bg-transparent">
+                        <td colSpan={COLUMNS.length} className="!p-0">
                           <VulnDetail cveId={vuln.cve_id} />
                         </td>
                       </tr>
@@ -171,6 +166,6 @@ export default function VulnTable() {
         total={data.total}
         onChange={(p: number) => setParams((prev) => ({ ...prev, page: p }))}
       />
-    </>
+    </section>
   );
 }

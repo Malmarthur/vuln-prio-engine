@@ -1,3 +1,11 @@
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-sans/700.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/ibm-plex-mono/600.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -9,14 +17,107 @@
   }
 
   html {
-    @apply bg-slate-50 antialiased;
+    @apply bg-gray-100 font-sans antialiased;
+    font-feature-settings: 'tnum' 1;
   }
 
   body {
-    @apply min-w-[320px] bg-slate-50 text-slate-900;
+    @apply min-w-[320px] bg-gray-100 text-gray-900;
   }
 
   ::selection {
-    @apply bg-indigo-100 text-indigo-950;
+    @apply bg-accent-100 text-accent-950;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply rounded-sm;
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: theme('colors.accent.700');
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent-500 ring-offset-1;
+  }
+}
+
+@layer components {
+  /* Panels: flat, bordered surfaces with an optional gray header band. */
+  .panel {
+    @apply border border-gray-300 bg-white;
+  }
+  .panel-header {
+    @apply flex min-h-[2.5rem] flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-gray-300 bg-gray-50 px-4 py-2;
+  }
+  .panel-title {
+    @apply text-[13px] font-semibold text-gray-900;
+  }
+  .panel-subtitle {
+    @apply text-xs text-gray-500;
+  }
+  .panel-body {
+    @apply p-4;
+  }
+
+  /* Small uppercase label used for KPIs, column headers and field groups. */
+  .label-caps {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-gray-500;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm border px-3 py-1.5 text-[13px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn border-accent-800 bg-accent-700 text-white hover:bg-accent-800;
+  }
+  .btn-secondary {
+    @apply btn border-gray-300 bg-white text-gray-800 hover:border-gray-400 hover:bg-gray-50;
+  }
+  .btn-ghost {
+    @apply btn border-transparent bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900;
+  }
+  .btn-danger {
+    @apply btn border-gray-300 bg-white text-red-700 hover:border-red-300 hover:bg-red-50;
+  }
+  .btn-sm {
+    @apply px-2 py-1 text-xs;
+  }
+
+  /* Form controls */
+  .field {
+    @apply rounded-sm border border-gray-300 bg-white px-2 py-1 text-[13px] text-gray-900 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500;
+  }
+
+  /* Data tables */
+  .data-table {
+    @apply min-w-full border-collapse text-[13px];
+  }
+  .data-table thead th {
+    @apply label-caps whitespace-nowrap border-b border-gray-300 bg-gray-50 px-3 py-2 text-left;
+  }
+  .data-table tbody td {
+    @apply border-b border-gray-200 px-3 py-2 align-middle;
+  }
+  .data-table tbody tr:hover {
+    @apply bg-accent-50/40;
+  }
+
+  /* Status messages */
+  .notice {
+    @apply flex items-start gap-3 border px-4 py-3 text-[13px];
+  }
+  .notice-info {
+    @apply notice border-accent-200 bg-accent-50 text-accent-900;
+  }
+  .notice-error {
+    @apply notice border-red-300 bg-red-50 text-red-800;
+  }
+  .notice-warning {
+    @apply notice border-amber-300 bg-amber-50 text-amber-900;
   }
 }

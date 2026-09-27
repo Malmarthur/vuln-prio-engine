@@ -1,34 +1,44 @@
-const PRIORITY_ORDER = ['V0', 'V1', 'V2', 'V3', 'A0', 'A1', 'A2', 'A3', 'P0', 'P1', 'P2', 'P3', 'UNSCORED'];
+import { PriorityBadge, priorityTier } from '../../lib/priority';
+
+// Cell intensity uses the neutral accent; priority colors only label the axes.
+const CELL_RGB = '41, 71, 99';
+
+function orderLevels(a: string, b: string) {
+  if (a === 'UNSCORED') return 1;
+  if (b === 'UNSCORED') return -1;
+  return (priorityTier(a) ?? 9) - (priorityTier(b) ?? 9) || a.localeCompare(b);
+}
 
 export default function TransitionHeatmap({ matrix }: { matrix: Record<string, Record<string, number>> }) {
-  const labels = Array.from(new Set([...Object.keys(matrix), ...Object.values(matrix).flatMap((row) => Object.keys(row))]))
-    .sort((a, b) => PRIORITY_ORDER.indexOf(a) - PRIORITY_ORDER.indexOf(b));
+  const labels = Array.from(new Set([...Object.keys(matrix), ...Object.values(matrix).flatMap((row) => Object.keys(row))])).sort(orderLevels);
   const max = Math.max(...Object.values(matrix).flatMap((row) => Object.values(row)), 1);
+  const columns = `64px repeat(${labels.length}, minmax(44px,1fr))`;
   return (
     <div className="overflow-x-auto">
       <div className="min-w-[300px]" role="table" aria-label="Priority transition matrix">
-        <div className="mb-2 grid items-end gap-1" style={{ gridTemplateColumns: `58px repeat(${labels.length}, minmax(38px,1fr))` }}>
-          <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">From ↓</span>
-          {labels.map((label) => <span key={label} className="text-center text-[10px] font-semibold text-slate-500">{label}</span>)}
+        <div className="mb-1 grid items-end gap-px" style={{ gridTemplateColumns: columns }} role="row">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">From \ To</span>
+          {labels.map((label) => <span key={label} className="flex justify-center" role="columnheader"><PriorityBadge level={label} label={label === 'UNSCORED' ? 'N/A' : label} /></span>)}
         </div>
-        {labels.map((from) => (
-          <div key={from} className="mb-1 grid gap-1" style={{ gridTemplateColumns: `58px repeat(${labels.length}, minmax(38px,1fr))` }}>
-            <span className="flex items-center text-[10px] font-semibold text-slate-500">{from}</span>
-            {labels.map((to) => {
+        <div className="grid gap-px bg-gray-200 p-px" style={{ gridTemplateColumns: columns }}>
+          {labels.map((from) => [
+            <span key={`${from}-label`} className="flex items-center bg-white pr-2" role="rowheader"><PriorityBadge level={from} label={from === 'UNSCORED' ? 'N/A' : from} /></span>,
+            ...labels.map((to) => {
               const value = matrix[from]?.[to] ?? 0;
               const intensity = value / max;
+              const diagonal = from === to;
               return (
                 <div
                   key={`${from}-${to}`}
-                  className={`flex aspect-square min-h-9 items-center justify-center rounded-md text-[10px] font-semibold tabular-nums ${intensity > 0.58 ? 'text-white' : 'text-slate-600'}`}
-                  style={{ backgroundColor: value ? `rgba(79,70,229,${0.08 + intensity * 0.84})` : 'rgb(248 250 252)' }}
+                  className={`flex min-h-10 items-center justify-center font-mono text-[11px] font-medium ${intensity > 0.5 ? 'text-white' : 'text-gray-700'} ${diagonal ? 'outline outline-1 -outline-offset-2 outline-gray-900/40' : ''}`}
+                  style={{ backgroundColor: value ? `rgba(${CELL_RGB}, ${0.07 + intensity * 0.88})` : '#ffffff' }}
                   title={`${from} → ${to}: ${value.toLocaleString()}`}
                   role="cell"
-                >{value ? compact(value) : '·'}</div>
+                >{value ? compact(value) : <span className="text-gray-300">·</span>}</div>
               );
-            })}
-          </div>
-        ))}
+            }),
+          ])}
+        </div>
       </div>
     </div>
   );

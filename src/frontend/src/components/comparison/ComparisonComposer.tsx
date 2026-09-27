@@ -1,6 +1,7 @@
-import { Check, ChevronDown, Play, Plus, X } from 'lucide-react';
+import { Check, Play, Plus, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { NamedScoringProfile, ScoringPreset, ScoringScope } from '../../api/client';
+import { CandidateMarker, ReferenceMarker } from './markers';
 import ScenarioSignature from './ScenarioSignature';
 
 const SCOPES: Array<{ id: ScoringScope; label: string }> = [
@@ -49,19 +50,19 @@ export default function ComparisonComposer({
     : { profile: scenario as NamedScoringProfile };
 
   return (
-    <section className="overflow-visible rounded-xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+    <section className="panel overflow-visible">
+      <div className="panel-header">
         <div>
-          <h2 className="text-sm font-semibold text-slate-900">Build your comparison</h2>
-          <p className="mt-0.5 text-sm text-slate-500">Choose a reference, then add the scoring strategies you want to challenge.</p>
+          <h2 className="panel-title">Comparison setup</h2>
+          <p className="panel-subtitle">Choose a reference, then add the scoring strategies to measure against it.</p>
         </div>
-        <div className="inline-flex self-start rounded-lg bg-slate-100 p-1" aria-label="Comparison scope">
+        <div className="inline-flex border border-gray-300 bg-white" aria-label="Comparison scope">
           {SCOPES.map((item) => (
             <button
               key={item.id}
               type="button"
               onClick={() => onScopeChange(item.id)}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${scope === item.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+              className={`border-r border-gray-300 px-3 py-1 text-xs font-medium last:border-r-0 ${scope === item.id ? 'bg-gray-800 text-white' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}
             >
               {item.label}
             </button>
@@ -69,51 +70,47 @@ export default function ComparisonComposer({
         </div>
       </div>
 
-      <div className="grid gap-4 p-5 xl:grid-cols-[minmax(260px,0.85fr)_36px_minmax(0,1.6fr)_auto] xl:items-stretch">
-        <div className="relative rounded-xl border-2 border-indigo-200 bg-indigo-50/40 p-4">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-700">Reference</span>
+      <div className="grid gap-4 p-4 xl:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.7fr)]">
+        <div className="relative border border-gray-300 bg-gray-50 p-3 pl-4">
+          <span className="absolute inset-y-0 left-0 w-[3px] bg-gray-800" aria-hidden="true" />
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2"><ReferenceMarker /><span className="label-caps">Reference</span></span>
             <label className="relative">
               <span className="sr-only">Reference scenario</span>
               <select
                 value={baselineId}
                 onChange={(event) => onBaselineChange(event.target.value)}
-                className="max-w-[150px] appearance-none border-0 bg-transparent py-1 pl-2 pr-7 text-xs font-medium text-slate-500 focus:ring-0"
+                className="field max-w-[170px] py-0.5 pl-2 pr-7 text-xs"
               >
                 {options.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-1 top-1.5 h-3.5 w-3.5 text-slate-400" />
             </label>
           </div>
-          <div className="text-base font-semibold text-slate-950">{baseline?.name ?? 'Select a reference'}</div>
-          <p className="mt-1 min-h-10 text-xs leading-5 text-slate-500">{baseline?.description || 'The benchmark every candidate will be measured against.'}</p>
-          {baseline && <div className="mt-4"><ScenarioSignature scope={scope} profiles={profiles} {...signatureProps(baseline)} /></div>}
+          <div className="text-base font-semibold text-gray-900">{baseline?.name ?? 'Select a reference'}</div>
+          <p className="mt-0.5 min-h-10 text-xs leading-5 text-gray-500">{baseline?.description || 'The benchmark every candidate is measured against.'}</p>
+          {baseline && <div className="mt-3 border-t border-gray-200 pt-3"><ScenarioSignature scope={scope} profiles={profiles} {...signatureProps(baseline)} /></div>}
         </div>
 
-        <div className="hidden items-center justify-center xl:flex" aria-hidden="true">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-400">vs</span>
-        </div>
-
-        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 p-3">
+        <div className="flex min-w-0 flex-col gap-3">
           <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
             {candidates.map((candidate, index) => (
-              <article key={candidate.id} className="group rounded-lg border border-slate-200 bg-white p-3 transition-colors hover:border-slate-300">
+              <article key={candidate.id} className="border border-gray-300 bg-white p-3">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`h-2 w-2 shrink-0 rounded-full ${['bg-indigo-500', 'bg-violet-500', 'bg-cyan-500', 'bg-fuchsia-500'][index % 4]}`} />
-                      <h3 className="truncate text-sm font-semibold text-slate-900">{candidate.name}</h3>
+                  <div className="flex min-w-0 items-start gap-2">
+                    <CandidateMarker index={index} />
+                    <div className="min-w-0">
+                      <h3 className="truncate text-[13px] font-semibold leading-5 text-gray-900">{candidate.name}</h3>
+                      <p className="truncate text-[11px] text-gray-500">{candidate.description || 'Scoring candidate'}</p>
                     </div>
-                    <p className="mt-1 truncate text-[11px] text-slate-400">{candidate.description || 'Scoring candidate'}</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => onCandidatesChange(candidateIds.filter((id) => id !== candidate.id))}
-                    className="rounded-md p-1 text-slate-300 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                    className="p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-800"
                     aria-label={`Remove ${candidate.name}`}
                   ><X className="h-3.5 w-3.5" /></button>
                 </div>
-                <div className="mt-3"><ScenarioSignature scope={scope} profiles={profiles} {...signatureProps(candidate)} /></div>
+                <div className="mt-3 border-t border-gray-100 pt-2.5"><ScenarioSignature scope={scope} profiles={profiles} {...signatureProps(candidate)} /></div>
               </article>
             ))}
 
@@ -121,17 +118,17 @@ export default function ComparisonComposer({
               <button
                 type="button"
                 onClick={() => setPickerOpen((value) => !value)}
-                className="flex min-h-[104px] w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white/60 text-xs font-semibold text-slate-500 transition-colors hover:border-indigo-300 hover:bg-indigo-50/50 hover:text-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="flex h-full min-h-[96px] w-full items-center justify-center gap-2 border border-dashed border-gray-300 text-xs font-medium text-gray-500 transition-colors hover:border-accent-400 hover:text-accent-700"
                 aria-expanded={pickerOpen}
-              ><Plus className="h-4 w-4" /> Add candidate</button>
+              ><Plus className="h-3.5 w-3.5" /> Add candidate</button>
               {pickerOpen && (
-                <div className="absolute left-0 top-full z-30 mt-2 w-[min(340px,85vw)] rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+                <div className="absolute left-0 top-full z-30 mt-1 w-[min(340px,85vw)] border border-gray-300 bg-white p-2 shadow-lg">
                   <input
                     autoFocus
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     placeholder="Search scenarios…"
-                    className="mb-2 w-full rounded-lg border-slate-200 bg-slate-50 text-sm focus:border-indigo-400 focus:ring-indigo-400"
+                    className="field mb-2 w-full"
                   />
                   <div className="max-h-56 overflow-y-auto">
                     {available.map((item) => {
@@ -141,28 +138,29 @@ export default function ComparisonComposer({
                           key={item.id}
                           type="button"
                           onClick={() => onCandidatesChange(selected ? candidateIds.filter((id) => id !== item.id) : [...candidateIds, item.id])}
-                          className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50"
+                          className="flex w-full items-center justify-between gap-3 px-2.5 py-1.5 text-left text-[13px] hover:bg-gray-50"
                         >
-                          <span className="truncate font-medium text-slate-700">{item.name}</span>
-                          {selected && <Check className="h-4 w-4 text-indigo-600" />}
+                          <span className="truncate text-gray-800">{item.name}</span>
+                          {selected && <Check className="h-4 w-4 text-accent-700" />}
                         </button>
                       );
                     })}
-                    {!available.length && <p className="px-3 py-5 text-center text-xs text-slate-400">No matching scenarios</p>}
+                    {!available.length && <p className="px-3 py-5 text-center text-xs text-gray-400">No matching scenarios</p>}
                   </div>
                 </div>
               )}
             </div>
           </div>
-        </div>
 
-        <div className="flex items-end justify-end">
-          <button
-            type="button"
-            onClick={onRun}
-            disabled={running || !baselineId || !candidateIds.length}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 xl:w-auto"
-          ><Play className="h-4 w-4 fill-current" /> {running ? 'Running…' : 'Run comparison'}</button>
+          <div className="mt-auto flex items-center justify-between gap-3 border-t border-gray-200 pt-3">
+            <span className="text-xs text-gray-500">{candidates.length} candidate{candidates.length === 1 ? '' : 's'} against {baseline?.name ?? 'no reference'}</span>
+            <button
+              type="button"
+              onClick={onRun}
+              disabled={running || !baselineId || !candidateIds.length}
+              className="btn-primary"
+            ><Play className="h-3.5 w-3.5 fill-current" /> {running ? 'Running…' : 'Run comparison'}</button>
+          </div>
         </div>
       </div>
     </section>

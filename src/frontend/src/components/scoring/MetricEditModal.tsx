@@ -70,46 +70,47 @@ export default function MetricEditModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/40 p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto border border-gray-300 bg-white shadow-xl" role="dialog" aria-modal="true">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+        <div className="panel-header sticky top-0 z-10">
           <div>
-            <p className="text-xs text-gray-400 font-mono">{columnName}</p>
-            <h2 className="text-base font-semibold text-gray-900">{config.label || meta.label}</h2>
+            <p className="font-mono text-[11px] text-gray-500">{columnName}</p>
+            <h2 className="panel-title">{config.label || meta.label}</h2>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-700 text-xl leading-none px-1"
+            className="btn-ghost btn-sm px-2 text-base leading-none"
+            aria-label="Close"
           >
             ×
           </button>
         </div>
 
-        <div className="px-5 py-4 space-y-5">
+        <div className="space-y-4 px-4 py-4">
           {/* Label */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Display Name</label>
+            <label className="label-caps mb-1 block !text-[10px]">Display name</label>
             <input
               type="text"
               value={config.label ?? meta.label}
               onChange={(e) => onUpdate({ label: e.target.value || undefined })}
               placeholder={meta.label}
-              className="w-full rounded border-gray-300 text-sm focus:border-gray-500 focus:ring-gray-500"
+              className="field w-full py-1"
             />
           </div>
 
           {/* Type + Range (read-only) */}
           <div className="flex items-center gap-3">
             <div>
-              <p className="text-xs font-medium text-gray-500 mb-1">Type</p>
+              <p className="label-caps mb-1 !text-[10px]">Type</p>
               <TypeBadge type={meta.type} />
             </div>
             {meta.type === 'numeric' && meta.range && (
               <div>
-                <p className="text-xs font-medium text-gray-500 mb-1">Range</p>
+                <p className="label-caps mb-1 !text-[10px]">Range</p>
                 <span className="text-xs text-gray-500 font-mono">
                   {meta.range[0]} – {meta.range[1]}
                 </span>
@@ -121,23 +122,26 @@ export default function MetricEditModal({
           <div className="flex items-center gap-3">
             <button
               onClick={() => onUpdate({ enabled: !config.enabled })}
-              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none ${
-                config.enabled ? 'bg-gray-900' : 'bg-gray-300'
+              role="switch"
+              aria-checked={config.enabled}
+              aria-label="Metric enabled"
+              className={`relative inline-flex h-4 w-7 shrink-0 items-center border transition-colors ${
+                config.enabled ? 'border-accent-700 bg-accent-700' : 'border-gray-400 bg-gray-200'
               }`}
             >
               <span
-                className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transform transition-transform ${
-                  config.enabled ? 'translate-x-4' : 'translate-x-0.5'
+                className={`inline-block h-2.5 w-2.5 bg-white transition-transform ${
+                  config.enabled ? 'translate-x-[14px]' : 'translate-x-0.5'
                 }`}
               />
             </button>
-            <span className="text-sm text-gray-700">{config.enabled ? 'Enabled' : 'Disabled'}</span>
+            <span className="text-[13px] text-gray-700">{config.enabled ? 'Enabled' : 'Disabled'}</span>
           </div>
 
           {/* Weight + Default */}
           <div className="flex gap-4">
             <label className="flex-1">
-              <span className="block text-xs font-medium text-gray-500 mb-1">Weight %</span>
+              <span className="label-caps mb-1 block !text-[10px]">Weight %</span>
               <input
                 type="number"
                 min="0"
@@ -145,11 +149,11 @@ export default function MetricEditModal({
                 step="1"
                 value={config.weight}
                 onChange={(e) => onUpdate({ weight: Number(e.target.value) })}
-                className="w-full rounded border-gray-300 text-sm text-right focus:border-gray-500 focus:ring-gray-500"
+                className="field w-full py-1 text-right font-mono"
               />
             </label>
             <label className="flex-1">
-              <span className="block text-xs font-medium text-gray-500 mb-1">Default (null)</span>
+              <span className="label-caps mb-1 block !text-[10px]">Default (null)</span>
               <input
                 type="number"
                 min="0"
@@ -157,7 +161,7 @@ export default function MetricEditModal({
                 step="1"
                 value={config.default_value}
                 onChange={(e) => onUpdate({ default_value: Number(e.target.value) })}
-                className="w-full rounded border-gray-300 text-sm text-right focus:border-gray-500 focus:ring-gray-500"
+                className="field w-full py-1 text-right font-mono"
               />
             </label>
           </div>
@@ -165,7 +169,7 @@ export default function MetricEditModal({
           {/* Value mappings — boolean / categorical */}
           {meta.type !== 'numeric' && (
             <div>
-              <p className="text-xs font-medium text-gray-500 mb-2">Value Mappings (0–100)</p>
+              <p className="label-caps mb-2 !text-[10px]">Value mappings (0–100)</p>
               {(config.fallbacks?.length ?? 0) > 0 && (
                 <p className="text-xs text-gray-400 mb-2">Applied to all columns in the fallback chain.</p>
               )}
@@ -192,7 +196,7 @@ export default function MetricEditModal({
                           const newValues = { ...(config.values ?? {}), [cat]: Number(e.target.value) };
                           onUpdate({ values: newValues });
                         }}
-                        className="w-16 rounded border-gray-300 text-sm text-right focus:border-gray-500 focus:ring-gray-500"
+                        className="field w-16 py-0.5 text-right font-mono"
                       />
                     </label>
                   ))}
@@ -203,8 +207,8 @@ export default function MetricEditModal({
 
           {/* Fallback chain */}
           <div>
-            <p className="text-xs font-medium text-gray-500 mb-2">Fallback Chain (first non-null wins)</p>
-            <div className="space-y-0.5 rounded-lg border border-gray-100 bg-gray-50 p-2">
+            <p className="label-caps mb-2 !text-[10px]">Fallback chain (first non-null wins)</p>
+            <div className="space-y-0.5 border border-gray-200 bg-gray-50 p-2">
               {/* Primary column */}
               <div className="flex items-center gap-2 text-xs text-gray-500 py-0.5 px-1">
                 <span className="text-gray-300 w-4 text-center font-mono">1.</span>
@@ -223,18 +227,18 @@ export default function MetricEditModal({
                       <button
                         onClick={() => onMoveFallback(idx, -1)}
                         disabled={idx === 0}
-                        className="px-1 py-0.5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-200 disabled:opacity-25 disabled:cursor-not-allowed"
+                        className="px-1 py-0.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200 disabled:opacity-25 disabled:cursor-not-allowed"
                         title="Move up"
                       >↑</button>
                       <button
                         onClick={() => onMoveFallback(idx, 1)}
                         disabled={idx === fbCount - 1}
-                        className="px-1 py-0.5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-200 disabled:opacity-25 disabled:cursor-not-allowed"
+                        className="px-1 py-0.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200 disabled:opacity-25 disabled:cursor-not-allowed"
                         title="Move down"
                       >↓</button>
                       <button
                         onClick={() => onRemoveFallback(fbCol)}
-                        className="px-1.5 py-0.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                        className="px-1.5 py-0.5 text-gray-400 hover:text-red-600 hover:bg-red-50"
                         title="Remove from chain"
                       >×</button>
                     </div>
@@ -247,7 +251,7 @@ export default function MetricEditModal({
                   <select
                     value=""
                     onChange={(e) => { if (e.target.value) onAddFallback(e.target.value); }}
-                    className="text-xs rounded border-gray-200 text-gray-500 focus:border-gray-400 focus:ring-gray-400 py-0.5 w-full"
+                    className="field w-full py-0.5 text-xs text-gray-600"
                   >
                     <option value="">+ Add fallback…</option>
                     {availableForFallback.map((fc) => (
@@ -261,16 +265,16 @@ export default function MetricEditModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-5 py-4 border-t border-gray-200">
+        <div className="flex items-center justify-between border-t border-gray-300 bg-gray-50 px-4 py-2.5">
           <button
             onClick={handleRemove}
-            className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
+            className="btn-danger btn-sm"
           >
-            Remove Metric
+            Remove metric
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
+            className="btn-primary btn-sm"
           >
             Done
           </button>

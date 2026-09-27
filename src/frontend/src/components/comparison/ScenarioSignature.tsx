@@ -1,5 +1,7 @@
 import { NamedScoringProfile, ScoringPreset, ScoringScope } from '../../api/client';
 
+// Successive weights use graduated neutral-blue shades; they are not priorities.
+const WEIGHT_SHADES = ['bg-accent-800', 'bg-accent-600', 'bg-accent-400', 'bg-accent-200', 'bg-gray-400'];
 const STAGE_LABELS = { vulnerability: 'Vuln', asset: 'Asset', finding: 'Finding' } as const;
 
 function profileWeights(profile?: NamedScoringProfile): number[] {
@@ -30,20 +32,20 @@ export default function ScenarioSignature({
     : profile ? [{ stage: profile.stage, profile }] : [];
 
   return (
-    <div className="space-y-2" aria-label="Scoring weight signature">
+    <div className="space-y-1.5" aria-label="Scoring weight signature">
       {rows.map(({ stage, profile: item }) => {
         const weights = profileWeights(item);
         const total = weights.reduce((sum, value) => sum + value, 0) || 1;
         return (
-          <div key={stage} className="grid grid-cols-[82px_1fr] items-center gap-2">
-            <span className="truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+          <div key={stage} className="grid grid-cols-[56px_1fr] items-center gap-2">
+            <span className="truncate text-[10px] font-semibold uppercase tracking-wider text-gray-500">
               {STAGE_LABELS[stage]}
             </span>
-            <div className="flex h-1.5 overflow-hidden rounded-full bg-slate-100">
+            <div className="flex h-2 gap-px overflow-hidden bg-gray-100">
               {weights.map((weight, index) => (
                 <span
                   key={`${stage}-${index}`}
-                  className={['bg-indigo-600', 'bg-violet-400', 'bg-sky-400', 'bg-cyan-400'][index % 4]}
+                  className={WEIGHT_SHADES[index % WEIGHT_SHADES.length]}
                   style={{ width: `${(weight / total) * 100}%` }}
                   title={`${weight}%`}
                 />

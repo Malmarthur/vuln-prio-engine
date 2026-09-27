@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { Vulnerability } from '../api/client';
+import { PriorityBadge, priorityBarClass } from '../lib/priority';
 
 interface VulnRowProps {
   vuln: Vulnerability;
@@ -7,21 +8,6 @@ interface VulnRowProps {
   expanded: boolean;
   onToggle: (key: string) => void;
 }
-
-const SEV_BADGE: Record<string, string> = {
-  CRITICAL: 'bg-red-100 text-red-700',
-  HIGH: 'bg-orange-100 text-orange-700',
-  MEDIUM: 'bg-yellow-100 text-yellow-800',
-  LOW: 'bg-blue-100 text-blue-700',
-  NONE: 'bg-gray-100 text-gray-600',
-};
-
-const PRIORITY_BADGE: Record<string, string> = {
-  V0: 'bg-red-100 text-red-700',
-  V1: 'bg-orange-100 text-orange-700',
-  V2: 'bg-yellow-100 text-yellow-800',
-  V3: 'bg-green-100 text-green-700',
-};
 
 function fmtDate(d: string | null | undefined): string {
   if (!d) return '\u2014';
@@ -53,70 +39,56 @@ const VulnRow = memo(function VulnRow({ vuln, rowKey, expanded, onToggle }: Vuln
   return (
     <tr
       onClick={() => onToggle(rowKey)}
-      className={`cursor-pointer border-b border-gray-100 transition-colors ${
-        expanded ? 'bg-gray-50' : 'hover:bg-gray-50'
-      }`}
+      className={`cursor-pointer ${expanded ? 'bg-gray-50' : ''}`}
+      aria-expanded={expanded}
     >
-      <td className="px-3 py-2 text-sm font-mono font-medium whitespace-nowrap">
+      <td className="whitespace-nowrap font-mono font-medium">
         {vuln.cve_id ? (
-          <span className="text-blue-700">{vuln.cve_id}</span>
+          <span className="text-accent-800">{vuln.cve_id}</span>
         ) : vuln.euvd_id ? (
-          <span className="text-purple-700">{vuln.euvd_id}</span>
+          <span className="text-accent-800">{vuln.euvd_id}</span>
         ) : (
           <span className="text-gray-300">&mdash;</span>
         )}
         {vuln.cve_id && vuln.euvd_id && (
-          <span className="ml-1.5 text-xs text-purple-500 font-normal">EUVD</span>
+          <span className="ml-1.5 border border-gray-300 px-1 font-sans text-[10px] font-medium text-gray-500">EUVD</span>
         )}
       </td>
-      <td className="px-3 py-2 text-sm text-gray-700 max-w-md truncate">
+      <td className="max-w-md truncate text-gray-700">
         {vuln.summary || '\u2014'}
       </td>
-      <td className="px-3 py-2 text-center whitespace-nowrap">
-        {vuln.priority_level ? (
-          <span
-            className={`inline-block px-2 py-0.5 text-xs font-semibold rounded ${
-              PRIORITY_BADGE[vuln.priority_level] ?? 'bg-gray-100 text-gray-600'
-            }`}
-          >
-            {vuln.priority_level}
-          </span>
-        ) : (
-          <span className="text-gray-300">&mdash;</span>
-        )}
+      <td className="whitespace-nowrap">
+        {vuln.priority_level ? <PriorityBadge level={vuln.priority_level} /> : <span className="text-gray-300">&mdash;</span>}
       </td>
-      <td className="px-3 py-2 text-sm text-right font-mono tabular-nums whitespace-nowrap">
+      <td className="whitespace-nowrap text-right font-mono">
         {vuln.priority_score != null ? vuln.priority_score.toFixed(1) : '\u2014'}
       </td>
-      <td className="px-3 py-2 text-center whitespace-nowrap">
+      <td className="whitespace-nowrap">
         {sev ? (
-          <span
-            className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${
-              SEV_BADGE[sev] || SEV_BADGE.NONE
-            }`}
-          >
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase text-gray-700">
+            <i className={`inline-block h-2 w-2 ${priorityBarClass(sev)}`} />
             {sev}
           </span>
         ) : (
           <span className="text-gray-300">{'\u2014'}</span>
         )}
       </td>
-      <td className="px-3 py-2 text-sm text-right font-mono tabular-nums whitespace-nowrap">
+      <td className="whitespace-nowrap text-right font-mono">
         {fmtCvss(score)}
       </td>
-      <td className="px-3 py-2 text-sm text-right font-mono tabular-nums whitespace-nowrap">
+      <td className="whitespace-nowrap text-right font-mono">
         {fmtEpss(vuln.epss_score)}
       </td>
-      <td className="px-3 py-2 text-center text-sm whitespace-nowrap">
+      <td className="whitespace-nowrap text-center">
         {vuln.kev_known_exploited ? (
-          <span className="text-red-600 font-medium" title="Known Exploited Vulnerability">
+          <span className="bg-red-700 px-1 text-[10px] font-semibold uppercase leading-4 text-white" title="CISA Known Exploited Vulnerability">
             KEV
           </span>
         ) : (
           <span className="text-gray-300">{'\u2014'}</span>
         )}
       </td>
-      <td className="px-3 py-2 text-sm text-gray-500 whitespace-nowrap hidden md:table-cell">
+      <td className="hidden whitespace-nowrap font-mono text-gray-500 md:table-cell">
         {fmtDate(vuln.published_date)}
       </td>
     </tr>

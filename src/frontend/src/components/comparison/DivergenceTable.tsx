@@ -1,6 +1,7 @@
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ComparisonItem, PaginatedComparisonItems, fetchComparisonItems } from '../../api/client';
+import { PriorityBadge } from '../../lib/priority';
 import { getErrorMessage } from '../../lib/utils';
 
 type Movement = 'promoted' | 'demoted' | 'unchanged' | '';
@@ -49,61 +50,59 @@ export default function DivergenceTable({ jobId, candidateId, levels }: { jobId:
 
   const pageCount = Math.max(1, Math.ceil((data?.total ?? 0) / 50));
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white" aria-labelledby="divergence-heading">
-      <div className="border-b border-slate-100 p-4 sm:p-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div><h3 id="divergence-heading" className="text-sm font-semibold text-slate-900">Most divergent items</h3><p className="mt-1 text-xs text-slate-500">Rank movement is positive when an item moves closer to the top of the queue.</p></div>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="relative min-w-[210px] flex-1 lg:flex-none">
-              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <span className="sr-only">Search divergent items</span>
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search CVE, asset or finding" className="w-full rounded-lg border-slate-200 py-2 pl-9 pr-3 text-xs focus:border-indigo-400 focus:ring-indigo-400" />
-            </label>
-            <FilterSelect label="Movement" value={movement} onChange={(value) => setMovement(value as Movement)} options={[['', 'All movements'], ['promoted', 'Promoted'], ['demoted', 'Demoted'], ['unchanged', 'Unchanged']]} />
-            <FilterSelect label="From priority" value={fromPriority} onChange={setFromPriority} options={[['', 'Any origin'], ...levels.map((level) => [level, `From ${level}`])]} />
-            <FilterSelect label="To priority" value={toPriority} onChange={setToPriority} options={[['', 'Any destination'], ...levels.map((level) => [level, `To ${level}`])]} />
-            <FilterSelect label="Sort" value={sort} onChange={(value) => setSort(value as Sort)} options={[['abs_rank_delta', 'Largest rank shift'], ['abs_score_delta', 'Largest score shift'], ['label', 'Name']]} icon />
-          </div>
-        </div>
+    <section className="panel overflow-hidden" aria-labelledby="divergence-heading">
+      <div className="panel-header">
+        <div><h3 id="divergence-heading" className="panel-title">Most divergent items</h3><p className="panel-subtitle">Rank movement is positive when an item moves closer to the top of the queue.</p></div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 py-2.5">
+        <label className="relative min-w-[220px] flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5 text-gray-400" />
+          <span className="sr-only">Search divergent items</span>
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search CVE, asset or finding" className="field w-full py-1 pl-8 pr-3" />
+        </label>
+        <FilterSelect label="Movement" value={movement} onChange={(value) => setMovement(value as Movement)} options={[['', 'All movements'], ['promoted', 'Promoted'], ['demoted', 'Demoted'], ['unchanged', 'Unchanged']]} />
+        <FilterSelect label="From priority" value={fromPriority} onChange={setFromPriority} options={[['', 'Any origin'], ...levels.map((level) => [level, `From ${level}`])]} />
+        <FilterSelect label="To priority" value={toPriority} onChange={setToPriority} options={[['', 'Any destination'], ...levels.map((level) => [level, `To ${level}`])]} />
+        <FilterSelect label="Sort" value={sort} onChange={(value) => setSort(value as Sort)} options={[['abs_rank_delta', 'Sort: largest rank shift'], ['abs_score_delta', 'Sort: largest score shift'], ['label', 'Sort: name']]} />
       </div>
 
-      {error && <div className="m-5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
+      {error && <div className="notice-error m-4">{error}</div>}
       <div className="hidden md:block">
-        <table className="w-full table-fixed text-left">
-          <thead className="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400"><tr><th className="w-[34%] px-5 py-3">Item</th><th className="w-[20%] px-3 py-3">Priority</th><th className="w-[14%] px-3 py-3">Score Δ</th><th className="w-[18%] px-3 py-3">Rank</th><th className="w-[14%] px-3 py-3">Movement</th></tr></thead>
-          <tbody className="divide-y divide-slate-100">
+        <table className="data-table w-full table-fixed">
+          <thead><tr><th className="w-[36%]">Item</th><th className="w-[18%]">Priority</th><th className="w-[12%] !text-right">Score Δ</th><th className="w-[20%] !text-right">Rank</th><th className="w-[14%] !text-right">Movement</th></tr></thead>
+          <tbody>
             {data?.items.map((item) => <DivergenceRow key={item.entity_id} item={item} onClick={() => setSelected(item)} />)}
           </tbody>
         </table>
       </div>
-      <div className="divide-y divide-slate-100 md:hidden">
+      <div className="divide-y divide-gray-200 md:hidden">
         {data?.items.map((item) => <DivergenceCard key={item.entity_id} item={item} onClick={() => setSelected(item)} />)}
       </div>
-      {loading && <div className="p-8 text-center text-sm text-slate-400" role="status">Loading divergences…</div>}
-      {!loading && !data?.items.length && !error && <div className="p-10 text-center"><div className="text-sm font-medium text-slate-600">No matching movements</div><div className="mt-1 text-xs text-slate-400">Try clearing one of the filters.</div></div>}
-      <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs text-slate-500 sm:px-5">
-        <span>{(data?.total ?? 0).toLocaleString()} items</span>
-        <div className="flex items-center gap-2"><button onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page <= 1} className="rounded-md border border-slate-200 p-1.5 disabled:opacity-30" aria-label="Previous page"><ChevronLeft className="h-4 w-4" /></button><span className="min-w-20 text-center tabular-nums">{page} / {pageCount}</span><button onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={page >= pageCount} className="rounded-md border border-slate-200 p-1.5 disabled:opacity-30" aria-label="Next page"><ChevronRight className="h-4 w-4" /></button></div>
+      {loading && <div className="p-8 text-center text-[13px] text-gray-500" role="status">Loading divergences…</div>}
+      {!loading && !data?.items.length && !error && <div className="p-10 text-center"><div className="text-[13px] font-medium text-gray-700">No matching movements</div><div className="mt-1 text-xs text-gray-500">Try clearing one of the filters.</div></div>}
+      <div className="flex items-center justify-between border-t border-gray-300 bg-gray-50 px-4 py-2 text-xs text-gray-600">
+        <span className="font-mono">{(data?.total ?? 0).toLocaleString()} items</span>
+        <div className="flex items-center gap-1"><button onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page <= 1} className="btn-secondary btn-sm px-1.5" aria-label="Previous page"><ChevronLeft className="h-3.5 w-3.5" /></button><span className="min-w-20 text-center font-mono">{page} / {pageCount}</span><button onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={page >= pageCount} className="btn-secondary btn-sm px-1.5" aria-label="Next page"><ChevronRight className="h-3.5 w-3.5" /></button></div>
       </div>
       {selected && <ItemDrawer item={selected} onClose={() => setSelected(null)} />}
     </section>
   );
 }
 
-function FilterSelect({ label, value, onChange, options, icon = false }: { label: string; value: string; onChange: (value: string) => void; options: string[][]; icon?: boolean }) {
-  return <label className="relative"><span className="sr-only">{label}</span>{icon && <SlidersHorizontal className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />}<select value={value} onChange={(event) => onChange(event.target.value)} className={`rounded-lg border-slate-200 py-2 pr-8 text-xs text-slate-600 focus:border-indigo-400 focus:ring-indigo-400 ${icon ? 'pl-8' : 'pl-3'}`}>{options.map(([id, text]) => <option key={id} value={id}>{text}</option>)}</select></label>;
+function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: string[][] }) {
+  return <label><span className="sr-only">{label}</span><select value={value} onChange={(event) => onChange(event.target.value)} className="field py-1 pl-2.5 pr-8 text-xs">{options.map(([id, text]) => <option key={id} value={id}>{text}</option>)}</select></label>;
 }
 
 function DivergenceRow({ item, onClick }: { item: ComparisonItem; onClick: () => void }) {
-  return <tr onClick={onClick} className="cursor-pointer text-xs text-slate-600 transition-colors hover:bg-indigo-50/30"><td className="truncate px-5 py-3.5 font-semibold text-slate-800" title={item.label}>{item.label}</td><td className="px-3 py-3.5"><PriorityTransition item={item} /></td><td className="px-3 py-3.5 font-mono tabular-nums">{signed(item.score_delta)}</td><td className="px-3 py-3.5 font-mono tabular-nums">{item.baseline_rank?.toLocaleString() ?? '—'} <span className="text-slate-300">→</span> {item.candidate_rank?.toLocaleString() ?? '—'}</td><td className="px-3 py-3.5"><Movement value={item.rank_delta} /></td></tr>;
+  return <tr onClick={onClick} className="cursor-pointer text-gray-700"><td className="truncate font-medium text-gray-900" title={item.label}>{item.label}</td><td><PriorityTransition item={item} /></td><td className="text-right font-mono">{signed(item.score_delta)}</td><td className="text-right font-mono">{item.baseline_rank?.toLocaleString() ?? '—'} <span className="text-gray-400">→</span> {item.candidate_rank?.toLocaleString() ?? '—'}</td><td className="text-right"><Movement value={item.rank_delta} /></td></tr>;
 }
 
 function DivergenceCard({ item, onClick }: { item: ComparisonItem; onClick: () => void }) {
-  return <button onClick={onClick} className="w-full p-4 text-left"><div className="truncate text-sm font-semibold text-slate-800">{item.label}</div><div className="mt-3 grid grid-cols-3 gap-2 text-xs"><div><span className="block text-[10px] uppercase text-slate-400">Priority</span><PriorityTransition item={item} /></div><div><span className="block text-[10px] uppercase text-slate-400">Score Δ</span><span className="font-mono">{signed(item.score_delta)}</span></div><div><span className="block text-[10px] uppercase text-slate-400">Movement</span><Movement value={item.rank_delta} /></div></div></button>;
+  return <button onClick={onClick} className="w-full p-4 text-left"><div className="truncate text-[13px] font-semibold text-gray-900">{item.label}</div><div className="mt-3 grid grid-cols-3 gap-2 text-xs"><div><span className="label-caps block !text-[10px]">Priority</span><PriorityTransition item={item} /></div><div><span className="label-caps block !text-[10px]">Score Δ</span><span className="font-mono">{signed(item.score_delta)}</span></div><div><span className="label-caps block !text-[10px]">Movement</span><Movement value={item.rank_delta} /></div></div></button>;
 }
 
-function PriorityTransition({ item }: { item: ComparisonItem }) { return <span className="font-semibold"><span className="text-slate-500">{item.baseline_priority ?? '—'}</span><span className="mx-1.5 text-slate-300">→</span><span className="text-slate-900">{item.candidate_priority ?? '—'}</span></span>; }
-function Movement({ value }: { value: number | null }) { if (!value) return <span className="text-slate-400">No change</span>; return <span className={`inline-flex items-center gap-1 font-semibold ${value > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{value > 0 ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}{Math.abs(value).toLocaleString()}</span>; }
+function PriorityTransition({ item }: { item: ComparisonItem }) { return <span className="inline-flex items-center gap-1.5"><PriorityBadge level={item.baseline_priority} /><span className="text-gray-400">→</span><PriorityBadge level={item.candidate_priority} /></span>; }
+function Movement({ value }: { value: number | null }) { if (!value) return <span className="text-gray-400">No change</span>; return <span className={`inline-flex items-center gap-1 font-mono font-medium ${value > 0 ? 'text-accent-700' : 'text-gray-500'}`}>{value > 0 ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}{Math.abs(value).toLocaleString()}</span>; }
 function signed(value: number | null) { if (value == null) return '—'; return `${value > 0 ? '+' : ''}${value.toFixed(2)}`; }
 
 function ItemDrawer({ item, onClose }: { item: ComparisonItem; onClose: () => void }) {
@@ -112,7 +111,20 @@ function ItemDrawer({ item, onClose }: { item: ComparisonItem; onClose: () => vo
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [onClose]);
-  return <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/20 backdrop-blur-[1px]" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><aside className="h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="item-detail-title"><div className="flex items-start justify-between gap-4"><div><div className="text-[10px] font-bold uppercase tracking-[0.14em] text-indigo-600">Divergent item</div><h3 id="item-detail-title" className="mt-2 break-words text-lg font-semibold text-slate-950">{item.label}</h3></div><button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Close detail"><X className="h-5 w-5" /></button></div><div className="mt-8 grid grid-cols-[1fr_auto_1fr] items-center gap-3"><Snapshot title="Reference" priority={item.baseline_priority} score={item.baseline_score} rank={item.baseline_rank} /><span className="text-slate-300">→</span><Snapshot title="Candidate" priority={item.candidate_priority} score={item.candidate_score} rank={item.candidate_rank} /></div><div className="mt-6 rounded-xl bg-slate-50 p-4"><div className="text-xs font-semibold text-slate-700">Net movement</div><div className="mt-3 grid grid-cols-2 gap-3"><div><div className="text-[10px] uppercase text-slate-400">Score delta</div><div className="mt-1 font-mono text-lg font-semibold tabular-nums text-slate-800">{signed(item.score_delta)}</div></div><div><div className="text-[10px] uppercase text-slate-400">Rank delta</div><div className="mt-1 text-lg"><Movement value={item.rank_delta} /></div></div></div></div></aside></div>;
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-gray-950/30" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+      <aside className="h-full w-full max-w-md overflow-y-auto border-l border-gray-300 bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="item-detail-title">
+        <div className="panel-header sticky top-0 z-10">
+          <div className="min-w-0"><div className="label-caps !text-[10px]">Divergent item</div><h3 id="item-detail-title" className="break-words text-[14px] font-semibold text-gray-900">{item.label}</h3></div>
+          <button onClick={onClose} className="btn-ghost btn-sm px-1.5" aria-label="Close detail"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="p-4">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3"><Snapshot title="Reference" priority={item.baseline_priority} score={item.baseline_score} rank={item.baseline_rank} /><span className="text-gray-400">→</span><Snapshot title="Candidate" priority={item.candidate_priority} score={item.candidate_score} rank={item.candidate_rank} /></div>
+          <div className="mt-4 border border-gray-200 bg-gray-50 p-3"><div className="label-caps">Net movement</div><div className="mt-2 grid grid-cols-2 gap-3"><div><div className="text-[11px] text-gray-500">Score delta</div><div className="font-mono text-lg font-semibold text-gray-900">{signed(item.score_delta)}</div></div><div><div className="text-[11px] text-gray-500">Rank delta</div><div className="text-lg"><Movement value={item.rank_delta} /></div></div></div></div>
+        </div>
+      </aside>
+    </div>
+  );
 }
 
-function Snapshot({ title, priority, score, rank }: { title: string; priority: string | null; score: number | null; rank: number | null }) { return <div className="rounded-xl border border-slate-200 p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{title}</div><div className="mt-3 text-2xl font-semibold text-slate-900">{priority ?? '—'}</div><dl className="mt-4 space-y-2 text-xs"><div className="flex justify-between"><dt className="text-slate-400">Score</dt><dd className="font-mono font-semibold tabular-nums text-slate-700">{score?.toFixed(2) ?? '—'}</dd></div><div className="flex justify-between"><dt className="text-slate-400">Rank</dt><dd className="font-mono font-semibold tabular-nums text-slate-700">{rank?.toLocaleString() ?? '—'}</dd></div></dl></div>; }
+function Snapshot({ title, priority, score, rank }: { title: string; priority: string | null; score: number | null; rank: number | null }) { return <div className="border border-gray-300 p-3"><div className="label-caps !text-[10px]">{title}</div><div className="mt-2"><PriorityBadge level={priority} className="!text-[13px]" /></div><dl className="mt-3 space-y-1 text-xs"><div className="flex justify-between"><dt className="text-gray-500">Score</dt><dd className="font-mono font-semibold text-gray-800">{score?.toFixed(2) ?? '—'}</dd></div><div className="flex justify-between"><dt className="text-gray-500">Rank</dt><dd className="font-mono font-semibold text-gray-800">{rank?.toLocaleString() ?? '—'}</dd></div></dl></div>; }

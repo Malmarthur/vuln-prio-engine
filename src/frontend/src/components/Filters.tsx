@@ -53,11 +53,11 @@ export default function Filters({ filters, onChange }: FiltersProps) {
     onChange({ ...filters, [key]: value, page: 1 });
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
-      <div className="flex flex-wrap gap-3 items-end">
+    <div className="border-b border-gray-200 px-4 py-2.5">
+      <div className="flex flex-wrap items-end gap-3">
         {/* Search */}
         <div className="flex-1 min-w-[200px]">
-          <label className="block text-xs font-medium text-gray-500 mb-1">
+          <label className="label-caps mb-1 block !text-[10px]">
             Search
           </label>
           <input
@@ -65,19 +65,19 @@ export default function Filters({ filters, onChange }: FiltersProps) {
             placeholder="CVE ID or keyword..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-gray-500 focus:ring-gray-500"
+            className="field w-full py-1"
           />
         </div>
 
         {/* Severity */}
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">
+          <label className="label-caps mb-1 block !text-[10px]">
             Severity
           </label>
           <select
             value={filters.severity || ''}
             onChange={(e) => set('severity', e.target.value)}
-            className="rounded-md border-gray-300 shadow-sm text-sm focus:border-gray-500 focus:ring-gray-500"
+            className="field py-1"
           >
             <option value="">All</option>
             {SEVERITIES.map((s) => (
@@ -89,19 +89,19 @@ export default function Filters({ filters, onChange }: FiltersProps) {
         </div>
 
         {/* KEV Only */}
-        <label className="flex items-center gap-1.5 text-sm text-gray-700 pb-0.5">
+        <label className="flex items-center gap-1.5 pb-1.5 text-[13px] text-gray-700">
           <input
             type="checkbox"
             checked={filters.kev_only || false}
             onChange={(e) => set('kev_only', e.target.checked)}
-            className="rounded border-gray-300 text-gray-900 focus:ring-gray-500"
+            className="rounded-sm border-gray-400 text-accent-700 focus:ring-accent-500"
           />
           KEV only
         </label>
 
         {/* Min EPSS */}
         <div className="w-24">
-          <label className="block text-xs font-medium text-gray-500 mb-1">
+          <label className="label-caps mb-1 block !text-[10px]">
             Min EPSS
           </label>
           <input
@@ -112,13 +112,13 @@ export default function Filters({ filters, onChange }: FiltersProps) {
             placeholder="0-1"
             value={filters.min_epss ?? ''}
             onChange={(e) => set('min_epss', e.target.value)}
-            className="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-gray-500 focus:ring-gray-500"
+            className="field w-full py-1"
           />
         </div>
 
         {/* Min CVSS */}
         <div className="w-24">
-          <label className="block text-xs font-medium text-gray-500 mb-1">
+          <label className="label-caps mb-1 block !text-[10px]">
             Min CVSS
           </label>
           <input
@@ -129,45 +129,45 @@ export default function Filters({ filters, onChange }: FiltersProps) {
             placeholder="0-10"
             value={filters.min_cvss ?? ''}
             onChange={(e) => set('min_cvss', e.target.value)}
-            className="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-gray-500 focus:ring-gray-500"
+            className="field w-full py-1"
           />
         </div>
 
         {/* Date from */}
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">
+          <label className="label-caps mb-1 block !text-[10px]">
             From
           </label>
           <input
             type="date"
             value={filters.date_from || ''}
             onChange={(e) => set('date_from', e.target.value)}
-            className="rounded-md border-gray-300 shadow-sm text-sm focus:border-gray-500 focus:ring-gray-500"
+            className="field py-1"
           />
         </div>
 
         {/* Date to */}
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">
+          <label className="label-caps mb-1 block !text-[10px]">
             To
           </label>
           <input
             type="date"
             value={filters.date_to || ''}
             onChange={(e) => set('date_to', e.target.value)}
-            className="rounded-md border-gray-300 shadow-sm text-sm focus:border-gray-500 focus:ring-gray-500"
+            className="field py-1"
           />
         </div>
 
         {/* Priority */}
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">
+          <label className="label-caps mb-1 block !text-[10px]">
             Priority
           </label>
           <select
             value={filters.priority_level || ''}
             onChange={(e) => set('priority_level', e.target.value)}
-            className="rounded-md border-gray-300 shadow-sm text-sm focus:border-gray-500 focus:ring-gray-500"
+            className="field py-1"
           >
             <option value="">All</option>
             {PRIORITIES.map((p) => (
@@ -186,7 +186,7 @@ export default function Filters({ filters, onChange }: FiltersProps) {
               sort_order: filters.sort_order,
             })
           }
-          className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+          className="btn-ghost btn-sm mb-0.5"
         >
           Reset
         </button>

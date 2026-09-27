@@ -15,36 +15,23 @@ export default function MetricCard({ columnName, config, meta, onClick }: Props)
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left rounded-lg border p-3 transition-all hover:shadow-md hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 ${
-        config.enabled
-          ? 'border-gray-300 bg-white'
-          : 'border-gray-200 bg-gray-50'
+      className={`grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border px-3 py-2 text-left transition-colors hover:border-accent-400 hover:bg-accent-50/30 ${
+        config.enabled ? 'border-gray-300 bg-white' : 'border-dashed border-gray-300 bg-gray-50'
       }`}
     >
-      {/* Top row: label + type badge */}
-      <div className="flex items-start justify-between gap-2 mb-1.5">
-        <span className={`text-sm font-medium leading-tight ${config.enabled ? 'text-gray-900' : 'text-gray-400'}`}>
-          {displayLabel}
+      <span className="min-w-0">
+        <span className="flex items-center gap-2">
+          <span className={`truncate text-[13px] font-medium ${config.enabled ? 'text-gray-900' : 'text-gray-400'}`}>{displayLabel}</span>
+          <TypeBadge type={meta.type} />
         </span>
-        <TypeBadge type={meta.type} />
-      </div>
-
-      {/* Source column name */}
-      <div className="text-xs text-gray-400 font-mono mb-2 truncate">
-        {columnName}
-      </div>
-
-      {/* Bottom row: weight + fallback indicator */}
-      <div className="flex items-center justify-between">
-        <span className={`text-xs font-mono ${config.enabled && config.weight > 0 ? 'text-gray-700' : 'text-gray-400'}`}>
-          {config.enabled ? `${config.weight}%` : 'disabled'}
+        <span className="mt-0.5 flex items-center gap-2 font-mono text-[11px] text-gray-400">
+          <span className="truncate">{columnName}</span>
+          {fallbackCount > 0 && <span className="shrink-0">↳ {fallbackCount} fallback{fallbackCount > 1 ? 's' : ''}</span>}
         </span>
-        {fallbackCount > 0 && (
-          <span className="text-xs text-gray-400">
-            ↳ {fallbackCount} fallback{fallbackCount > 1 ? 's' : ''}
-          </span>
-        )}
-      </div>
+      </span>
+      <span className={`font-mono text-[13px] font-semibold ${config.enabled && config.weight > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
+        {config.enabled ? `${config.weight}%` : 'off'}
+      </span>
     </button>
   );
 }

@@ -8,8 +8,6 @@ interface PaginationProps {
 export default function Pagination({ page, perPage, total, onChange }: PaginationProps) {
   const totalPages = Math.max(1, Math.ceil(total / perPage));
 
-  if (totalPages <= 1) return null;
-
   // Build page number list with ellipsis
   const pages: number[] = [];
   const addPage = (n: number) => {
@@ -28,46 +26,52 @@ export default function Pagination({ page, perPage, total, onChange }: Paginatio
     items.push(pages[i]);
   }
 
+  const buttonClass = 'min-w-[1.75rem] border px-1.5 py-0.5 font-mono text-xs';
+
+  // Rendered as a table footer: always shows the result count.
   return (
-    <div className="flex items-center justify-between mt-4 text-sm">
-      <span className="text-gray-500">
+    <div className="flex items-center justify-between gap-3 border-t border-gray-300 bg-gray-50 px-4 py-2 text-xs">
+      <span className="font-mono text-gray-600">
         {total.toLocaleString()} result{total !== 1 ? 's' : ''}
       </span>
-      <div className="flex items-center gap-1">
-        <button
-          disabled={page <= 1}
-          onClick={() => onChange(page - 1)}
-          className="px-2 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          Prev
-        </button>
-        {items.map((item, i) =>
-          item === '...' ? (
-            <span key={`e${i}`} className="px-1 text-gray-400">
-              ...
-            </span>
-          ) : (
-            <button
-              key={item}
-              onClick={() => onChange(item as number)}
-              className={`px-2.5 py-1 rounded border text-sm ${
-                item === page
-                  ? 'bg-gray-900 text-white border-gray-900'
-                  : 'border-gray-300 text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              {item}
-            </button>
-          ),
-        )}
-        <button
-          disabled={page >= totalPages}
-          onClick={() => onChange(page + 1)}
-          className="px-2 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          Next
-        </button>
-      </div>
+      {totalPages > 1 && (
+        <div className="flex items-center gap-1">
+          <button
+            disabled={page <= 1}
+            onClick={() => onChange(page - 1)}
+            className="btn-secondary btn-sm"
+          >
+            Prev
+          </button>
+          {items.map((item, i) =>
+            item === '...' ? (
+              <span key={`e${i}`} className="px-1 text-gray-400">
+                …
+              </span>
+            ) : (
+              <button
+                key={item}
+                onClick={() => onChange(item as number)}
+                aria-current={item === page ? 'page' : undefined}
+                className={`${buttonClass} ${
+                  item === page
+                    ? 'border-accent-700 bg-accent-700 text-white'
+                    : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                {item}
+              </button>
+            ),
+          )}
+          <button
+            disabled={page >= totalPages}
+            onClick={() => onChange(page + 1)}
+            className="btn-secondary btn-sm"
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 }

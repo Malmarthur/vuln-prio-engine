@@ -38,10 +38,10 @@ export default function AddMetricButton({ eligibleColumns, profile, allFallbacks
     <div className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full h-full min-h-[100px] flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600 transition-colors"
+        className="flex w-full items-center justify-center gap-2 border border-dashed border-gray-300 px-3 py-2 text-xs font-medium text-gray-500 transition-colors hover:border-accent-400 hover:text-accent-700"
       >
-        <span className="text-2xl leading-none">+</span>
-        <span className="text-xs font-medium">Add Metric</span>
+        <span className="text-sm leading-none">+</span>
+        Add metric
       </button>
 
       {open && (
@@ -49,9 +49,9 @@ export default function AddMetricButton({ eligibleColumns, profile, allFallbacks
           {/* Backdrop */}
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           {/* Dropdown */}
-          <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-gray-200 w-64 max-h-72 overflow-y-auto">
+          <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-sm shadow-lg border border-gray-300 w-64 max-h-72 overflow-y-auto">
             <div className="px-3 py-2 border-b border-gray-100">
-              <p className="text-xs font-medium text-gray-500">Available columns</p>
+              <p className="label-caps">Available columns</p>
             </div>
             {available.map(([col, meta]) => (
               <button
