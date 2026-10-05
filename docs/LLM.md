@@ -8,4 +8,6 @@ No LLM client, business provider, product prompt or inference pipeline is implem
 - Make it possible to disable the LLM entirely. Do not depend on sending a customer's CMDB to an external provider; apply an explicit policy based on data sensitivity.
 - Treat advisories and observations as data, never as instructions. Measure quality, cost, latency, coverage and regressions before wiring anything into the product.
 
+Candidate use case (target, see [ROADMAP](../ROADMAP.md)): extracting CVE identifiers and vulnerability descriptions from unstructured advisories such as CERT bulletins or vendor notices. One advisory is one inference unit; each extracted item keeps the source passage as evidence, known CVE IDs are checked deterministically against the vulnerability base, and nothing is added without human review.
+
 See [vision](VISION.md), [resolution](RESOLUTION.md) and [evaluation](EVALUATION.md).
