@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Activity, ActivityJob } from '../api/client';
 import { ActivityProvider, finishedTransitions, tasksFromActivity, useActivity, useActivityFinished } from './activity';
 
-const mocks = vi.hoisted(() => ({ fetchActivity: vi.fn() }));
+const mocks = vi.hoisted(() => ({ fetchActivity: vi.fn(), startScoringRun: vi.fn() }));
 vi.mock('../api/client', async (importOriginal) => ({
   ...await importOriginal<typeof import('../api/client')>(),
   ...mocks,
@@ -72,12 +72,80 @@ describe('ActivityProvider', () => {
     expect(screen.getByText('Matching & scoring findings completed — 3 findings matched, 3 scored')).toBeInTheDocument();
   });
 
+  it('keeps polling when a request never settles', async () => {
+    mocks.fetchActivity
+      .mockImplementationOnce((signal: AbortSignal) => new Promise((_, reject) => {
+        signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+      }))
+      .mockResolvedValue(activity([job({})]));
+    render(<ActivityProvider><Listener onFinished={vi.fn()} /></ActivityProvider>);
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000 + 10_000); });
+    expect(screen.getByText('Matching & scoring findings:running')).toBeInTheDocument();
+  });
+
   it('does not notify for tasks that already ended before the page loaded', async () => {
     mocks.fetchActivity.mockResolvedValue(activity([job({ status: 'completed' })]));
     const onFinished = vi.fn();
     render(<ActivityProvider><Listener onFinished={onFinished} /></ActivityProvider>);
     await act(async () => { await vi.advanceTimersByTimeAsync(11_000); });
     expect(onFinished).not.toHaveBeenCalled();
+  });
+});
+
+function StartProbe() {
+  const { tasks, startScoring } = useActivity();
+  return (
+    <>
+      <button onClick={() => { startScoring('vulnerability'); startScoring('vulnerability'); }}>start</button>
+      <div data-testid="tasks">{tasks.map((task) => `${task.key}:${task.status}:${task.label ?? ''}`).join(',')}</div>
+    </>
+  );
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+describe('starting a job', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
+
+  const scoring = job({ id: 'run-1', kind: 'run', scope: 'vulnerability', status: 'pending', progress: 0, progress_detail: {}, request: {} });
+
+  it('shows the job immediately, ignores a double click and stale polls', async () => {
+    const stale = deferred<Activity>();
+    const created = deferred<typeof scoring>();
+    mocks.fetchActivity
+      .mockResolvedValueOnce(activity([]))
+      .mockReturnValueOnce(stale.promise)
+      .mockResolvedValue(activity([]));
+    mocks.startScoringRun.mockReturnValue(created.promise);
+    render(<ActivityProvider><StartProbe /></ActivityProvider>);
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); }); // second poll now in flight
+
+    await act(async () => { screen.getByText('start').click(); });
+    expect(mocks.startScoringRun).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('tasks')).toHaveTextContent('pending:run:vulnerability:queued:Starting…');
+
+    await act(async () => { created.resolve(scoring); await vi.advanceTimersByTimeAsync(0); });
+    expect(screen.getByTestId('tasks')).toHaveTextContent(/^job:run-1:queued:$/);
+
+    // The poll started before the job existed answers late and must not erase it,
+    // nor must the next poll that does not list it yet.
+    await act(async () => { stale.resolve(activity([])); await vi.advanceTimersByTimeAsync(1600); });
+    expect(screen.getByTestId('tasks')).toHaveTextContent(/^job:run-1:queued:$/);
+  });
+
+  it('removes the placeholder when the job cannot start', async () => {
+    mocks.fetchActivity.mockResolvedValue(activity([]));
+    mocks.startScoringRun.mockRejectedValue(new Error('A scoring job is already running'));
+    render(<ActivityProvider><StartProbe /><ToastProbe /></ActivityProvider>);
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    await act(async () => { screen.getByText('start').click(); await vi.advanceTimersByTimeAsync(0); });
+    expect(screen.getByTestId('tasks')).toBeEmptyDOMElement();
+    expect(screen.getByText('Could not start scoring — A scoring job is already running')).toBeInTheDocument();
   });
 });
 

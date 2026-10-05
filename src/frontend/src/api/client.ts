@@ -663,8 +663,8 @@ export interface Activity {
   ingestions: ActivityIngestion[];
 }
 
-export function fetchActivity(): Promise<Activity> {
-  return request<Activity>('/activity');
+export function fetchActivity(signal?: AbortSignal): Promise<Activity> {
+  return request<Activity>('/tasks', { signal });
 }
 
 export function fetchComparisonResult(id: string): Promise<ComparisonResult> {

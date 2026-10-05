@@ -11,7 +11,8 @@ from app.schemas.scoring import ActivityIngestion, ActivityJob, ActivityResponse
 from app.services.profile_service import ACTIVE_JOB_STATUSES
 from app.services.vulnerability_service import get_latest_ingestion_status
 
-router = APIRouter(prefix="/activity", tags=["activity"])
+# Not "/activity": ad blockers filter that path and the feed silently stops.
+router = APIRouter(prefix="/tasks", tags=["activity"])
 
 RECENT_WINDOW = timedelta(minutes=10)
 SCOPE_LABELS = {

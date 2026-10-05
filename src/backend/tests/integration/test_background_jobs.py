@@ -82,7 +82,7 @@ async def test_matching_job_conflict_and_activity_feed(client, db_session):
     res = await client.post("/api/v1/findings/match/jobs", json={"score_after": True})
     assert res.status_code == 409
 
-    body = (await client.get("/api/v1/activity")).json()
+    body = (await client.get("/api/v1/tasks")).json()
     jobs = {job["id"]: job for job in body["jobs"]}
     assert str(old.id) not in jobs
     assert jobs[str(running.id)]["title"] == "Matching & scoring findings"

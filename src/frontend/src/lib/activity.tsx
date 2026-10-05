@@ -6,6 +6,7 @@ import {
   ScoringScope,
   cancelIngestion,
   cancelScoringJob,
+  ScoringJob,
   fetchActivity,
   startMatchingJob,
   startScoringRun,
@@ -32,6 +33,8 @@ export interface Task {
   finishedAt?: string | null;
   cancelRequested?: boolean;
   summary?: string;
+  /** Local placeholder while the start request is in flight: no server id yet. */
+  pending?: boolean;
 }
 
 export interface Toast {
@@ -43,10 +46,28 @@ export interface Toast {
 
 const ACTIVE_POLL_MS = 1500;
 const IDLE_POLL_MS = 10_000;
+// Each poll schedules the next one, so a request that never settles (e.g. cut
+// by a backend restart) would stop tracking until a page reload.
+const POLL_TIMEOUT_MS = 10_000;
 const RECENT_MS = 10 * 60_000;
+// A job returned by its start endpoint stays shown until a poll sees it.
+const OPTIMISTIC_MS = 30_000;
 
 export function isActive(task: Task): boolean {
   return task.status === 'queued' || task.status === 'running';
+}
+
+const SCOPE_LABELS: Record<string, string> = { preset: 'preset', vulnerability: 'vulnerabilities', asset: 'assets', finding: 'findings' };
+
+/** Same wording as the backend activity feed (`app/api/activity.py`). */
+export function jobTitle(kind: Task['kind'], scope?: ScoringScope, scoreAfter?: boolean): string {
+  if (kind === 'matching') return scoreAfter ? 'Matching & scoring findings' : 'Matching findings';
+  if (kind === 'comparison') return 'Strategy comparison';
+  return `Scoring ${SCOPE_LABELS[scope ?? ''] ?? scope}`;
+}
+
+function startedJob(job: ScoringJob): ActivityJob {
+  return { ...job, title: jobTitle(job.kind, job.scope, Boolean(job.request.score_after)), result_summary: null };
 }
 
 function jobTask(job: ActivityJob): Task {
@@ -119,6 +140,13 @@ export function tasksFromActivity(activity: Activity, now = Date.now()): Task[] 
  * end between two polls). Callers skip this on the very first poll so work
  * finished before the page opened is not reported.
  */
+/** Replace the task with the same key, or put it first. */
+export function upsertTask(tasks: Task[], task: Task): Task[] {
+  return tasks.some((item) => item.key === task.key)
+    ? tasks.map((item) => (item.key === task.key ? task : item))
+    : [task, ...tasks];
+}
+
 export function finishedTransitions(previous: Map<string, TaskStatus>, next: Task[]): Task[] {
   return next.filter((task) => {
     if (isActive(task)) return false;
@@ -149,6 +177,13 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
   const statuses = useRef<Map<string, TaskStatus> | null>(null);
   const listeners = useRef(new Set<Listener>());
   const timer = useRef<number | undefined>(undefined);
+  // Only the latest poll may apply its response: an older one still in flight
+  // would otherwise overwrite fresher state (e.g. a job that was just started).
+  const pollSeq = useRef(0);
+  const inFlight = useRef<AbortController | null>(null);
+  // Jobs returned by their start endpoint, kept until the feed includes them.
+  const optimistic = useRef(new Map<string, { task: Task; at: number }>());
+  const starting = useRef(new Set<string>());
   const nextToastId = useRef(1);
 
   const dismissToast = useCallback((id: number) => setToasts((items) => items.filter((item) => item.id !== id)), []);
@@ -161,9 +196,21 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
 
   const poll = useCallback(async () => {
     window.clearTimeout(timer.current);
+    const seq = ++pollSeq.current;
+    inFlight.current?.abort();
+    const controller = new AbortController();
+    inFlight.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), POLL_TIMEOUT_MS);
     let anyActive = false;
     try {
-      const next = tasksFromActivity(await fetchActivity());
+      const activity = await fetchActivity(controller.signal);
+      if (seq !== pollSeq.current) return;
+      let next = tasksFromActivity(activity);
+      const now = Date.now();
+      for (const [key, entry] of optimistic.current) {
+        if (next.some((task) => task.key === key) || now - entry.at > OPTIMISTIC_MS) optimistic.current.delete(key);
+        else next = upsertTask(next, entry.task);
+      }
       anyActive = next.some(isActive);
       // The first load only records state: tasks that ended before the page
       // opened must not trigger notifications or reloads.
@@ -179,13 +226,26 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
       setTasks(next);
     } catch {
       // The backend may be restarting; keep the last known state and retry.
+      if (seq !== pollSeq.current) return;
+    } finally {
+      window.clearTimeout(timeout);
     }
     timer.current = window.setTimeout(poll, anyActive ? ACTIVE_POLL_MS : IDLE_POLL_MS);
   }, [notify]);
 
   useEffect(() => {
     poll();
-    return () => window.clearTimeout(timer.current);
+    // Catch up at once when the tab comes back (background timers are throttled).
+    const onVisible = () => { if (document.visibilityState === 'visible') poll(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      window.clearTimeout(timer.current);
+      inFlight.current?.abort();
+      pollSeq.current++;
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
   }, [poll]);
 
   const run = useCallback(async (action: () => Promise<unknown>, failureTitle: string) => {
@@ -194,6 +254,37 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     } catch (reason) {
       notify({ tone: 'error', title: failureTitle, message: getErrorMessage(reason) });
     } finally {
+      poll();
+    }
+  }, [notify, poll]);
+
+  // Show the job at once: a placeholder while the request is in flight, then
+  // the job the endpoint returned, without waiting for the next poll.
+  const start = useCallback(async (
+    placeholder: Pick<Task, 'kind' | 'scope' | 'title'>,
+    action: () => Promise<ScoringJob>,
+    failureTitle: string,
+  ) => {
+    const pendingKey = `pending:${placeholder.kind}:${placeholder.scope ?? ''}`;
+    if (starting.current.has(pendingKey)) return; // double click
+    starting.current.add(pendingKey);
+    // Polls already scheduled or in flight predate this job and would drop it.
+    window.clearTimeout(timer.current);
+    inFlight.current?.abort();
+    pollSeq.current++;
+    setTasks((items) => upsertTask(items, {
+      ...placeholder, key: pendingKey, type: 'job', id: '', status: 'queued', progress: null, label: 'Starting…', pending: true,
+    }));
+    try {
+      const task = jobTask(startedJob(await action()));
+      optimistic.current.set(task.key, { task, at: Date.now() });
+      statuses.current?.set(task.key, task.status);
+      setTasks((items) => upsertTask(items.filter((item) => item.key !== pendingKey), task));
+    } catch (reason) {
+      setTasks((items) => items.filter((item) => item.key !== pendingKey));
+      notify({ tone: 'error', title: failureTitle, message: getErrorMessage(reason) });
+    } finally {
+      starting.current.delete(pendingKey);
       poll();
     }
   }, [notify, poll]);
@@ -207,8 +298,16 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     tasks,
     toasts,
     refresh: () => { poll(); },
-    startMatching: (scoreAfter) => run(() => startMatchingJob(scoreAfter), 'Could not start matching'),
-    startScoring: (scope) => run(() => startScoringRun(scope), 'Could not start scoring'),
+    startMatching: (scoreAfter) => start(
+      { kind: 'matching', scope: 'finding', title: jobTitle('matching', 'finding', scoreAfter) },
+      () => startMatchingJob(scoreAfter),
+      'Could not start matching',
+    ),
+    startScoring: (scope) => start(
+      { kind: 'run', scope, title: jobTitle('run', scope) },
+      () => startScoringRun(scope),
+      'Could not start scoring',
+    ),
     cancel: (task) => run(
       () => (task.type === 'job' ? cancelScoringJob(task.id) : cancelIngestion(task.source ?? '')),
       'Could not cancel the task',
@@ -216,7 +315,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     dismissToast,
     notify,
     subscribe,
-  }), [tasks, toasts, poll, run, dismissToast, notify, subscribe]);
+  }), [tasks, toasts, poll, run, start, dismissToast, notify, subscribe]);
 
   return <ActivityContext.Provider value={value}>{children}</ActivityContext.Provider>;
 }

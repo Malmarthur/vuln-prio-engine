@@ -2,8 +2,8 @@ import { Activity as ActivityIcon, CheckCircle2, CircleX, Loader2, X } from 'luc
 import { useEffect, useState } from 'react';
 import { isActive, progressText, type Task, useActivity } from '../lib/activity';
 
-// Finished tasks stay visible briefly so the outcome is noticed.
-const LINGER_MS = 15_000;
+// Finished tasks stay visible for a while so the outcome is noticed.
+const LINGER_MS = 60_000;
 
 function elapsed(task: Task, now: number): string {
   if (!task.startedAt) return '';
@@ -48,7 +48,7 @@ export default function ActivityPanel() {
                     {active ? (task.label ?? 'In progress') : task.status === 'completed' ? (task.summary ?? 'Completed') : task.status === 'failed' ? 'Failed' : 'Cancelled'}
                   </div>
                 </div>
-                {active && !task.cancelRequested && (task.kind !== 'ingestion' || task.status === 'running') && (
+                {active && !task.pending && !task.cancelRequested && (task.kind !== 'ingestion' || task.status === 'running') && (
                   <button onClick={() => cancel(task)} className="shrink-0 p-0.5 text-gray-500 hover:text-gray-200" aria-label={`Cancel ${task.title}`} title="Cancel">
                     <X className="h-3.5 w-3.5" />
                   </button>
