@@ -443,13 +443,24 @@ async def _execute_job(job_id: UUID) -> None:
 
 
 async def _report_progress(session: AsyncSession, job: ScoringJob, progress: float, detail: dict[str, Any]) -> None:
-    """Persist progress, then honour a pending cancellation request."""
-    job.progress = round(max(0.0, min(progress, 100.0)), 2)
-    job.progress_detail = detail
-    await session.commit()
-    cancel_requested = (
-        await session.execute(select(ScoringJob.cancel_requested).where(ScoringJob.id == job.id))
-    ).scalar_one()
+    """Persist progress, then honour a pending cancellation request.
+
+    Progress is written by a separate short session on the same database: the
+    work session may be in the middle of a bulk write that must stay one
+    transaction, so it is never committed here (a cancel rolls it all back).
+    """
+    async with AsyncSession(session.bind, expire_on_commit=False) as progress_session:
+        # Fail instead of hanging should the work transaction ever lock the job row.
+        await progress_session.execute(text("SET LOCAL lock_timeout = '5s'"))
+        cancel_requested = (
+            await progress_session.execute(
+                update(ScoringJob)
+                .where(ScoringJob.id == job.id)
+                .values(progress=round(max(0.0, min(progress, 100.0)), 2), progress_detail=detail)
+                .returning(ScoringJob.cancel_requested)
+            )
+        ).scalar_one()
+        await progress_session.commit()
     if cancel_requested:
         raise JobCancelled()
 
@@ -565,7 +576,10 @@ async def run_target(
 
     if scope == "vulnerability":
         profile = await _require_profile(session, target_id, "vulnerability")
-        rows, distribution = await compute_scores(session, VulnerabilityScoringProfile.model_validate(profile.config), profile.id, profile.revision)
+        rows, distribution = await compute_scores(
+            session, VulnerabilityScoringProfile.model_validate(profile.config), profile.id, profile.revision,
+            on_progress=on_progress,
+        )
         cache["vulnerability"].add(profile.id)
         revisions, snapshot, context_id = {str(profile.id): profile.revision}, profile.config, None
     elif scope == "asset":
@@ -581,19 +595,23 @@ async def run_target(
         if on_progress:
             await on_progress(0, {"phase": "scoring", "label": "Scoring vulnerabilities"})
         if vp.id not in cache["vulnerability"]:
-            await compute_scores(session, VulnerabilityScoringProfile.model_validate(vp.config), vp.id, vp.revision)
+            await compute_scores(
+                session, VulnerabilityScoringProfile.model_validate(vp.config), vp.id, vp.revision,
+                on_progress=_progress_range(on_progress, 0, 60),
+            )
             cache["vulnerability"].add(vp.id)
         if on_progress:
-            await on_progress(40, {"phase": "scoring", "label": "Scoring assets"})
+            await on_progress(60, {"phase": "scoring", "label": "Scoring assets"})
         if ap.id not in cache["asset"]:
             await compute_asset_scores(session, AssetScoringProfile.model_validate(ap.config), ap.id, ap.revision)
             cache["asset"].add(ap.id)
         if on_progress:
-            await on_progress(50, {"phase": "scoring", "label": "Scoring findings"})
+            await on_progress(65, {"phase": "scoring", "label": "Scoring findings"})
         if context.id not in cache["finding"]:
             rows, distribution = await compute_finding_scores(
                 session, FindingScoringProfile.model_validate(fp.config), context.id,
                 vp.id, ap.id, {str(vp.id): vp.revision, str(ap.id): ap.revision, str(fp.id): fp.revision},
+                on_progress=_progress_range(on_progress, 65, 100),
             )
             cache["finding"].add(context.id)
         else:
@@ -623,6 +641,17 @@ async def run_target(
         await session.execute(text("UPDATE finding_scores SET scoring_run_id=:run_id WHERE scoring_context_id=:context_id"), {"run_id": run.id, "context_id": context_id})
     await session.commit()
     return run
+
+
+def _progress_range(on_progress: Any, start: float, end: float) -> Any:
+    """Map a sub-step's 0-100 % progress onto [start, end] of the caller's."""
+    if on_progress is None:
+        return None
+
+    async def report(pct: float, detail: dict[str, Any]) -> None:
+        await on_progress(start + pct * (end - start) / 100, detail)
+
+    return report
 
 
 async def dataset_watermark(session: AsyncSession) -> dict[str, Any]:

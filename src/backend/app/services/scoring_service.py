@@ -5,14 +5,26 @@ via asyncpg temp-table COPY for maximum throughput.
 """
 from __future__ import annotations
 
+import io
 import logging
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 import polars as pl
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.scoring import ColumnConfig, ScoreDistribution, ScoringProfile
+
+# Progress callback: (percent 0-100, detail) -> awaitable. Jobs use it to
+# persist progress and may raise to cancel between batches.
+ProgressCallback = Callable[[float, dict[str, Any]], Awaitable[None]]
+
+# Rows per COPY batch when rewriting vulnerability scores (progress granularity).
+SCORE_COPY_BATCH_SIZE = 25_000
+
+
+async def _noop_progress(_pct: float, _detail: dict[str, Any]) -> None:
+    return None
 
 logger = logging.getLogger(__name__)
 
@@ -122,12 +134,16 @@ async def compute_scores(
     profile_id: Any | None = None,
     profile_revision: int = 1,
     scoring_run_id: Any | None = None,
+    on_progress: ProgressCallback | None = None,
 ) -> tuple[int, dict[str, int]]:
     """
     Load vulnerability data into Polars, compute scores vectorially, then
     write results back to DB via asyncpg temp-table COPY.
     Returns (rows_updated, priority_distribution).
+
+    Progress: loading 0-5 %, computing 5-8 %, writing 8-100 % (COPY dominates).
     """
+    report = on_progress or _noop_progress
     enabled = {
         col: cfg
         for col, cfg in profile.columns.items()
@@ -138,10 +154,12 @@ async def compute_scores(
 
     logger.info("Running Polars score computation for %d columns", len(enabled))
 
+    await report(0, {"phase": "loading", "label": "Loading vulnerabilities"})
     df = await _load_vulnerabilities_df(session, enabled)
     if df.is_empty():
         return 0, {}
 
+    await report(5, {"phase": "scoring", "label": f"Computing {len(df):,} vulnerability scores"})
     scored_df = _build_scoring_pipeline(df.lazy(), enabled, profile.thresholds).collect()
 
     # Compute distribution from the scored DataFrame (no extra SQL round-trips)
@@ -157,7 +175,7 @@ async def compute_scores(
         from app.services.profile_service import get_active_preset
         _, context = await get_active_preset(session)
         profile_id = context.vulnerability_profile_id
-    rows = await _write_back_scores(session, scored_df, profile_id, profile_revision, scoring_run_id)
+    rows = await _write_back_scores(session, scored_df, profile_id, profile_revision, scoring_run_id, report)
     logger.info("Scored %d rows. Distribution: %s", rows, distribution)
     return rows, distribution
 
@@ -283,6 +301,7 @@ async def _write_back_scores(
     profile_id: Any | None = None,
     profile_revision: int = 1,
     scoring_run_id: Any | None = None,
+    report: ProgressCallback = _noop_progress,
 ) -> int:
     """
     Bulk-write scores to the vulnerability_scores table using TRUNCATE + COPY.
@@ -293,8 +312,7 @@ async def _write_back_scores(
     - Indexes are rebuilt from scratch after COPY (faster than incremental maintenance)
     - No trigger overhead, no dead tuples
     """
-    import io
-
+    await report(8, {"phase": "saving", "label": "Clearing previous vulnerability scores"})
     conn = await session.connection()
     raw = await conn.get_raw_connection()
     asyncpg_conn = raw.driver_connection
@@ -325,21 +343,25 @@ async def _write_back_scores(
         )
     )
 
-    # Write CSV to an in-memory buffer (Rust-speed serialization via Polars)
-    buf = io.BytesIO()
-    write_df.write_csv(buf, include_header=False, null_value="")
-    buf.seek(0)
+    # COPY in batches so progress can be reported (one transaction overall).
+    # CSV is written to an in-memory buffer (Rust-speed serialization via Polars).
+    total = len(write_df)
+    for offset in range(0, total, SCORE_COPY_BATCH_SIZE):
+        await report(
+            10 + offset / total * 85,
+            {"phase": "saving", "label": f"Writing vulnerability scores ({offset:,}/{total:,})"},
+        )
+        buf = io.BytesIO()
+        write_df.slice(offset, SCORE_COPY_BATCH_SIZE).write_csv(buf, include_header=False, null_value="")
+        buf.seek(0)
+        await asyncpg_conn.copy_to_table(
+            "vulnerability_scores",
+            source=buf,
+            format="csv",
+            columns=list(write_df.columns),
+        )
 
-    await asyncpg_conn.copy_to_table(
-        "vulnerability_scores",
-        source=buf,
-        format="csv",
-        columns=[
-            "vulnerability_id", "vulnerability_profile_id", "priority_score",
-            "priority_confidence", "priority_level", "profile_revision", "scoring_run_id",
-        ],
-    )
-
+    await report(95, {"phase": "saving", "label": "Rebuilding vulnerability score indexes"})
     # Rebuild indexes from scratch (faster than incremental maintenance during COPY)
     await asyncpg_conn.execute(
         "CREATE INDEX ix_vulnerability_scores_priority_score ON vulnerability_scores (priority_score)"

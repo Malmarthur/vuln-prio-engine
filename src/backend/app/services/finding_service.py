@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Awaitable, Callable
+from typing import Any
 from uuid import UUID
 
 import polars as pl
@@ -18,7 +18,7 @@ from app.schemas.finding import FindingScoringProfile
 from app.schemas.scoring import ScoringProfile
 from app.services.asset_service import compute_asset_scores
 from app.services.cpe import VersionMatcher, cpe_product_candidates
-from app.services.scoring_service import compute_scores, get_scoring_profile
+from app.services.scoring_service import ProgressCallback, _noop_progress, compute_scores, get_scoring_profile
 from app.models.ingestion_log import IngestionLog
 from app.services.vulnerability_service import backfill_vulnerability_products, get_setting, set_setting
 
@@ -38,14 +38,8 @@ DEFAULT_FINDING_SCORING_PROFILE: dict[str, Any] = {
 }
 LEGACY_FINDING_PRIORITY_MAP = {"V0": "P0", "V1": "P1", "V2": "P2", "V3": "P3"}
 LAST_MATCHED_SETTING = "findings_last_matched_at"
-
-# Progress callback: (percent 0-100, detail) -> awaitable. Jobs use it to
-# persist progress and may raise to cancel between batches.
-ProgressCallback = Callable[[float, dict[str, Any]], Awaitable[None]]
-
-
-async def _noop_progress(_pct: float, _detail: dict[str, Any]) -> None:
-    return None
+# Findings per INSERT … SELECT when scoring (progress granularity).
+FINDING_SCORE_BATCH_SIZE = 10_000
 
 
 async def run_matching(session: AsyncSession, on_progress: ProgressCallback | None = None) -> dict[str, int]:
@@ -504,7 +498,9 @@ async def compute_finding_scores(
     asset_profile_id: UUID | None = None,
     profile_revisions: dict[str, int] | None = None,
     scoring_run_id: UUID | None = None,
+    on_progress: ProgressCallback | None = None,
 ) -> tuple[int, dict[str, int]]:
+    report = on_progress or _noop_progress
     if context_id is None:
         from app.models.scoring import ScoringProfile as NamedScoringProfile
         from app.services.profile_service import get_active_preset
@@ -571,6 +567,7 @@ async def compute_finding_scores(
                 AND vs.vulnerability_profile_id = :vulnerability_profile_id
             LEFT JOIN asset_scores ars ON ars.asset_id = f.asset_id
                 AND ars.asset_profile_id = :asset_profile_id
+            WHERE f.id >= :batch_start AND (CAST(:batch_end AS uuid) IS NULL OR f.id < :batch_end)
             ON CONFLICT (finding_id, scoring_context_id) DO UPDATE SET
                 priority_score = EXCLUDED.priority_score,
                 priority_confidence = EXCLUDED.priority_confidence,
@@ -583,10 +580,17 @@ async def compute_finding_scores(
         for name in params
         if name not in {"context_id", "vulnerability_profile_id", "asset_profile_id", "profile_revisions", "scoring_run_id"}
     ], bindparam("profile_revisions", type_=JSONB))
-    await session.execute(
-        stmt,
-        params,
-    )
+    # Score by ranges of finding ids so progress can be reported (one transaction overall).
+    starts = list((await session.execute(text(
+        "SELECT id FROM (SELECT id, row_number() OVER (ORDER BY id) AS rn FROM findings) ranked"
+        " WHERE (rn - 1) % :size = 0 ORDER BY id"
+    ), {"size": FINDING_SCORE_BATCH_SIZE})).scalars())
+    total = (await session.execute(select(func.count(Finding.id)))).scalar_one()
+    for index, start in enumerate(starts):
+        done = index * FINDING_SCORE_BATCH_SIZE
+        await report(done / total * 100, {"phase": "scoring", "label": f"Scoring findings ({done:,}/{total:,})"})
+        end = starts[index + 1] if index + 1 < len(starts) else None
+        await session.execute(stmt, {**params, "batch_start": start, "batch_end": end})
     await session.commit()
 
     rows = (await session.execute(select(func.count(FindingScore.finding_id)).where(FindingScore.scoring_context_id == context_id))).scalar_one()
