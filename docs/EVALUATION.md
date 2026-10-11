@@ -16,7 +16,15 @@ There is no separate Research Lab directory in this repository. Its capabilities
 
 The built-in presets Balanced, Active Exploitation and Business Impact can be cloned; the active preset is separate from the choice of compared candidates. Scores are persisted per profile or context, with a revision and a run reference. The legacy scoring APIs remain adapters to the active preset.
 
-Comparisons measure distributions, level transitions, promotions/demotions, score/rank deltas and Spearman correlation. The divergence detail view supports search, filters and pagination. These metrics compare strategies; without ground truth they do not prove that findings are correct or that there is a business benefit.
+Comparisons measure distributions, level transitions, promotions/demotions, score/rank deltas, Spearman correlation and, for N in 10/50/100/500, how many items enter, leave or stay in the top N of the queue. These metrics compare strategies; without ground truth they do not prove that findings are correct or that there is a business benefit.
+
+Filtering has three layers, from widest to narrowest:
+
+- **Population** (optional, saved in the job request as `subset`): attribute criteria and/or explicit entity ids (the followed list is frozen into ids at launch). Ranks, movements, Spearman and top-N are computed *inside* it. Scoring still covers every item, because score tables are shared with the rest of the application. Re-running a comparison keeps its population.
+- **Attribute filters** (search on CVE/asset/vendor/product, KEV, EPSS, CVSS severity — best available version v4.0 → v2 —, business criticality, Internet exposure, followed only): they slice the population without changing ranks. Charts are recomputed for the slice (`/comparisons/{job}/facets`); Spearman and score-delta medians stay whole-population values and are hidden while filtering.
+- **Chart selections** (origin/destination level, movement, top-N entered/left/stayed): they filter the item table and are highlighted in the charts.
+
+A summary reports, per scenario, whether its configuration changed since the run (profile revised, preset re-wired to another profile, scenario deleted), separately from source-data changes. Followed items (`followed_items`, per entity type) show each item's priority and rank in the reference and every candidate. The item explanation lists input signals and the weight share each run's configuration snapshot gives each factor; it does not recompute per-factor contributions, to avoid duplicating the scoring engines.
 
 ## Current scientific limitations
 

@@ -23,6 +23,10 @@ function tabFromUrl() {
 
 export default function App() {
   const [tab, setTab] = useState(tabFromUrl);
+  // Compare stays mounted once opened so its results, filters and running job
+  // survive tab changes.
+  const [compareOpened, setCompareOpened] = useState(tab === 'compare');
+  useEffect(() => { if (tab === 'compare') setCompareOpened(true); }, [tab]);
 
   useEffect(() => {
     const onPopState = () => setTab(tabFromUrl());
@@ -45,11 +49,14 @@ export default function App() {
           <FindingsFreshnessBanner onOpenFindings={tab === 'findings' ? undefined : () => navigate('findings')} />
         )}
         <Suspense fallback={<div className="p-8 text-center text-[13px] text-gray-500">Loading…</div>}>
+          {compareOpened && (
+            <div hidden={tab !== 'compare'}>
+              <ComparisonWorkspace active={tab === 'compare'} onManageProfiles={() => navigate('dashboard')} />
+            </div>
+          )}
           {tab === 'dashboard' ? (
             <DashboardPanel />
-          ) : tab === 'compare' ? (
-            <ComparisonWorkspace onManageProfiles={() => navigate('dashboard')} />
-          ) : tab === 'vulnerabilities' ? (
+          ) : tab === 'compare' ? null : tab === 'vulnerabilities' ? (
             <>
               <StatsBar />
               <VulnTable />

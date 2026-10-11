@@ -100,10 +100,38 @@ class ScoringRunRequest(BaseModel):
     target_id: Optional[UUID] = None
 
 
+class ComparisonFilters(BaseModel):
+    """Entity attribute filters: a comparison population or a view slice."""
+    q: Optional[str] = Field(None, max_length=200)
+    kev: Optional[bool] = None
+    min_epss: Optional[float] = Field(None, ge=0, le=1)
+    severities: list[str] = Field(default_factory=list, max_length=10)
+    criticalities: list[str] = Field(default_factory=list, max_length=10)
+    exposures: list[str] = Field(default_factory=list, max_length=10)
+    vendor: Optional[str] = Field(None, max_length=200)
+    product: Optional[str] = Field(None, max_length=200)
+    followed_only: bool = False
+    entity_ids: list[UUID] = Field(default_factory=list, max_length=5000)
+
+    def is_empty(self) -> bool:
+        return not self.model_dump(exclude_defaults=True)
+
+
 class ComparisonRequest(BaseModel):
     scope: ScoringScope
     baseline_id: UUID
     candidate_ids: list[UUID] = Field(..., min_length=1)
+    subset: Optional[ComparisonFilters] = None
+
+
+class SubsetPreviewRequest(BaseModel):
+    scope: ScoringScope
+    subset: ComparisonFilters = Field(default_factory=ComparisonFilters)
+
+
+class SubsetPreview(BaseModel):
+    count: int
+    total: int
 
 
 class JobResponse(BaseModel):
@@ -191,6 +219,7 @@ class ComparisonCandidateResult(BaseModel):
     mean_score_delta: float
     median_score_delta: float
     spearman_rank_correlation: Optional[float] = None
+    top_n: dict[str, dict[str, int]] = Field(default_factory=dict)
     items: list[ComparisonItem]
 
 
@@ -219,6 +248,13 @@ class ComparisonCandidateSummary(ComparisonScenarioSummary):
     mean_score_delta: float = 0
     median_score_delta: float = 0
     spearman_rank_correlation: Optional[float] = None
+    top_n: dict[str, dict[str, int]] = Field(default_factory=dict)
+
+
+class ChangedScenario(BaseModel):
+    id: UUID
+    name: str
+    reasons: list[str]
 
 
 class ComparisonSummary(BaseModel):
@@ -233,6 +269,9 @@ class ComparisonSummary(BaseModel):
     is_stale: bool = False
     is_inconsistent: bool = False
     details_available: bool = False
+    data_changed: bool = False
+    changed_scenarios: list[ChangedScenario] = Field(default_factory=list)
+    subset: Optional[ComparisonFilters] = None
     created_at: datetime
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
@@ -251,6 +290,9 @@ class ComparisonHistoryItem(BaseModel):
     is_stale: bool = False
     is_inconsistent: bool = False
     details_available: bool = False
+    data_changed: bool = False
+    changed_scenarios: list[ChangedScenario] = Field(default_factory=list)
+    subset: Optional[ComparisonFilters] = None
     created_at: datetime
     finished_at: Optional[datetime] = None
     error: Optional[str] = None
@@ -261,3 +303,84 @@ class PaginatedComparisonItems(BaseModel):
     page: int
     per_page: int
     items: list[ComparisonItem]
+
+
+class ComparisonFacetCandidate(BaseModel):
+    id: UUID
+    total: int
+    distribution: dict[str, int]
+    transition_matrix: dict[str, dict[str, int]]
+    promoted: int
+    demoted: int
+    unchanged: int
+    top_n: dict[str, dict[str, int]] = Field(default_factory=dict)
+
+
+class ComparisonFacets(BaseModel):
+    baseline_total: int
+    baseline_distribution: dict[str, int]
+    candidates: list[ComparisonFacetCandidate]
+
+
+FollowedEntityType = Literal["vulnerability", "asset", "finding"]
+
+
+class FollowedItemsRequest(BaseModel):
+    entity_type: FollowedEntityType
+    entity_ids: list[UUID] = Field(..., min_length=1, max_length=1000)
+
+
+class FollowedItem(BaseModel):
+    entity_type: FollowedEntityType
+    entity_id: UUID
+    label: str
+    created_at: datetime
+
+
+class FollowedChange(BaseModel):
+    changed: int
+    total: int
+
+
+class FollowedScenarioPosition(BaseModel):
+    score: Optional[float] = None
+    priority: str = "UNSCORED"
+    rank: Optional[int] = None
+
+
+class ComparisonFollowedRow(BaseModel):
+    entity_id: UUID
+    label: str
+    positions: dict[str, FollowedScenarioPosition]
+
+
+class ComparisonFollowed(BaseModel):
+    followed_total: int
+    in_population: int
+    population_total: int
+    items: list[ComparisonFollowedRow]
+
+
+class ExplanationSignal(BaseModel):
+    group: str
+    key: str
+    label: str
+    value: Any = None
+
+
+class ExplanationFactor(BaseModel):
+    stage: str
+    key: str
+    label: str
+    baseline_weight: Optional[float] = None
+    candidate_weight: Optional[float] = None
+    baseline_share: Optional[float] = None
+    candidate_share: Optional[float] = None
+    changed: bool = False
+
+
+class ComparisonExplanation(BaseModel):
+    item: ComparisonItem
+    signals: list[ExplanationSignal]
+    factors: list[ExplanationFactor]
+    thresholds: dict[str, dict[str, dict[str, float]]] = Field(default_factory=dict)

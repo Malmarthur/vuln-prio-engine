@@ -227,6 +227,34 @@ export interface ComparisonCandidateSummary extends ComparisonScenarioSummary {
   mean_score_delta: number;
   median_score_delta: number;
   spearman_rank_correlation: number | null;
+  /** Items entering/leaving the top N of the queue, keyed by N; absent on older runs. */
+  top_n?: Record<string, TopNChange>;
+}
+
+export interface TopNChange {
+  entered: number;
+  left: number;
+  overlap: number;
+}
+
+/** Entity attribute filters: a saved comparison population or an interactive view slice. */
+export interface ComparisonFilters {
+  q?: string | null;
+  kev?: boolean | null;
+  min_epss?: number | null;
+  severities?: string[];
+  criticalities?: string[];
+  exposures?: string[];
+  vendor?: string | null;
+  product?: string | null;
+  followed_only?: boolean;
+  entity_ids?: string[];
+}
+
+export interface ChangedScenario {
+  id: string;
+  name: string;
+  reasons: string[];
 }
 
 export interface ComparisonSummary {
@@ -241,6 +269,9 @@ export interface ComparisonSummary {
   is_stale: boolean;
   is_inconsistent: boolean;
   details_available: boolean;
+  data_changed: boolean;
+  changed_scenarios: ChangedScenario[];
+  subset: ComparisonFilters | null;
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
@@ -259,6 +290,9 @@ export interface ComparisonHistoryItem {
   is_stale: boolean;
   is_inconsistent: boolean;
   details_available: boolean;
+  data_changed: boolean;
+  changed_scenarios: ChangedScenario[];
+  subset: ComparisonFilters | null;
   created_at: string;
   finished_at: string | null;
   error: string | null;
@@ -270,6 +304,82 @@ export interface PaginatedComparisonItems {
   per_page: number;
   items: ComparisonItem[];
 }
+
+export interface ComparisonFacetCandidate {
+  id: string;
+  total: number;
+  distribution: Record<string, number>;
+  transition_matrix: Record<string, Record<string, number>>;
+  promoted: number;
+  demoted: number;
+  unchanged: number;
+  top_n: Record<string, TopNChange>;
+}
+
+export interface ComparisonFacets {
+  baseline_total: number;
+  baseline_distribution: Record<string, number>;
+  candidates: ComparisonFacetCandidate[];
+}
+
+export type FollowedEntityType = 'vulnerability' | 'asset' | 'finding';
+
+export interface FollowedItem {
+  entity_type: FollowedEntityType;
+  entity_id: string;
+  label: string;
+  created_at: string;
+}
+
+export interface FollowedChange {
+  changed: number;
+  total: number;
+}
+
+export interface ComparisonFollowed {
+  followed_total: number;
+  in_population: number;
+  population_total: number;
+  items: Array<{
+    entity_id: string;
+    label: string;
+    positions: Record<string, { score: number | null; priority: string; rank: number | null }>;
+  }>;
+}
+
+export interface ComparisonExplanation {
+  item: ComparisonItem;
+  signals: Array<{ group: 'vulnerability' | 'asset' | 'finding'; key: string; label: string; value: string | number | boolean | null }>;
+  factors: Array<{
+    stage: 'vulnerability' | 'asset' | 'finding';
+    key: string;
+    label: string;
+    baseline_weight: number | null;
+    candidate_weight: number | null;
+    baseline_share: number | null;
+    candidate_share: number | null;
+    changed: boolean;
+  }>;
+  thresholds: Record<'baseline' | 'candidate', Record<string, Record<string, number>>>;
+}
+
+/** Query parameters understood by the comparison item, facet and follow endpoints. */
+export type ComparisonQuery = {
+  q?: string;
+  kev?: boolean;
+  min_epss?: number;
+  severity?: string[];
+  criticality?: string[];
+  exposure?: string[];
+  vendor?: string;
+  product?: string;
+  followed_only?: boolean;
+  movement?: 'promoted' | 'demoted' | 'unchanged' | '';
+  from_priority?: string;
+  to_priority?: string;
+  top_n?: number;
+  top_change?: 'entered' | 'left' | 'stayed' | '';
+};
 
 // --- Asset / finding types ---
 
@@ -471,7 +581,7 @@ export interface AssetScoringProfile {
 
 // --- Internal helpers ---
 
-type QueryParams = Record<string, string | number | boolean | null | undefined>;
+type QueryParams = Record<string, string | number | boolean | string[] | null | undefined>;
 
 const API_BASE = '/api/v1';
 
@@ -490,7 +600,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 function toQuery(params: QueryParams): string {
   const qs = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => {
-    if (v !== null && v !== undefined && v !== '' && v !== false) qs.set(k, String(v));
+    if (Array.isArray(v)) v.forEach((item) => qs.append(k, item));
+    else if (v !== null && v !== undefined && v !== '' && v !== false) qs.set(k, String(v));
   });
   const str = qs.toString();
   return str ? `?${str}` : '';
@@ -612,10 +723,10 @@ export function createScoringPreset(payload: { name: string; description: string
   return request<ScoringPreset>('/scoring/presets', { method: 'POST', body: JSON.stringify(payload) });
 }
 
-export function startScoringComparison(scope: ScoringScope, baselineId: string, candidateIds: string[]): Promise<ScoringJob> {
+export function startScoringComparison(scope: ScoringScope, baselineId: string, candidateIds: string[], subset?: ComparisonFilters | null): Promise<ScoringJob> {
   return request<ScoringJob>('/scoring/comparisons', {
     method: 'POST',
-    body: JSON.stringify({ scope, baseline_id: baselineId, candidate_ids: candidateIds }),
+    body: JSON.stringify({ scope, baseline_id: baselineId, candidate_ids: candidateIds, subset: subset ?? null }),
   });
 }
 
@@ -679,18 +790,54 @@ export function fetchComparisonSummary(id: string): Promise<ComparisonSummary> {
   return request<ComparisonSummary>(`/scoring/comparisons/${id}/summary`);
 }
 
-export function fetchComparisonItems(id: string, params: {
+export function fetchComparisonItems(id: string, params: ComparisonQuery & {
   candidate_id: string;
   page?: number;
   per_page?: number;
-  q?: string;
-  movement?: 'promoted' | 'demoted' | 'unchanged' | '';
-  from_priority?: string;
-  to_priority?: string;
-  sort?: 'abs_rank_delta' | 'rank_delta' | 'abs_score_delta' | 'score_delta' | 'label';
+  sort?: 'abs_rank_delta' | 'rank_delta' | 'abs_score_delta' | 'score_delta' | 'label' | 'baseline_rank' | 'candidate_rank';
   order?: 'asc' | 'desc';
 }, signal?: AbortSignal): Promise<PaginatedComparisonItems> {
   return request<PaginatedComparisonItems>(`/scoring/comparisons/${id}/items${toQuery(params)}`, { signal });
+}
+
+export function fetchComparisonFacets(id: string, params: ComparisonQuery, signal?: AbortSignal): Promise<ComparisonFacets> {
+  return request<ComparisonFacets>(`/scoring/comparisons/${id}/facets${toQuery(params)}`, { signal });
+}
+
+export function fetchComparisonFollowed(id: string, signal?: AbortSignal): Promise<ComparisonFollowed> {
+  return request<ComparisonFollowed>(`/scoring/comparisons/${id}/followed`, { signal });
+}
+
+export function followComparisonMatches(id: string, params: ComparisonQuery & { candidate_id: string }): Promise<FollowedChange> {
+  return request<FollowedChange>(`/scoring/comparisons/${id}/followed${toQuery(params)}`, { method: 'POST' });
+}
+
+export function explainComparisonItem(id: string, entityId: string, candidateId: string, signal?: AbortSignal): Promise<ComparisonExplanation> {
+  return request<ComparisonExplanation>(`/scoring/comparisons/${id}/items/${entityId}/explain${toQuery({ candidate_id: candidateId })}`, { signal });
+}
+
+export function previewComparisonSubset(scope: ScoringScope, subset: ComparisonFilters, signal?: AbortSignal): Promise<{ count: number; total: number }> {
+  return request<{ count: number; total: number }>('/scoring/comparisons/subset/preview', {
+    method: 'POST',
+    body: JSON.stringify({ scope, subset }),
+    signal,
+  });
+}
+
+export function fetchFollowedItems(entityType: FollowedEntityType): Promise<FollowedItem[]> {
+  return request<FollowedItem[]>(`/scoring/followed${toQuery({ entity_type: entityType })}`);
+}
+
+export function followItems(entityType: FollowedEntityType, entityIds: string[]): Promise<FollowedChange> {
+  return request<FollowedChange>('/scoring/followed', {
+    method: 'POST',
+    body: JSON.stringify({ entity_type: entityType, entity_ids: entityIds }),
+  });
+}
+
+export function unfollowItems(entityType: FollowedEntityType, entityIds: string[] | 'all'): Promise<FollowedChange> {
+  const params = entityIds === 'all' ? { entity_type: entityType, clear: true } : { entity_type: entityType, entity_id: entityIds };
+  return request<FollowedChange>(`/scoring/followed${toQuery(params)}`, { method: 'DELETE' });
 }
 
 // --- Asset / finding API functions ---

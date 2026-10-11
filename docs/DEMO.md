@@ -6,7 +6,7 @@ Use the synthetic stack from the [README](../README.md). The seed script refuses
 
 1. **Dashboard**: show the three stages. A vulnerability's score depends on CVSS/EPSS/KEV signals; an asset's score depends on exposure, criticality and patch complexity; findings combine both.
 2. **Compare → Recent comparisons**: open the prepared comparison, or compose a new preset comparison with **Balanced** as baseline and **Active Exploitation** / **Business Impact** as candidates. Launch it and wait for `completed`.
-3. **Results**: compare the distributions, then select a candidate. The matrix shows level changes; divergences show score and rank changes. A rank promotion does not necessarily imply a level change.
+3. **Results**: compare the distributions, then select a candidate. The matrix shows level changes; divergences show score and rank changes. A rank promotion does not necessarily imply a level change. Click a matrix cell (e.g. P2 → P1) or a band to filter the divergences, add an attribute filter such as KEV to recompute the charts, and open an item to see its signals and the weight shares of both scenarios. Star items to follow them across comparisons.
 4. **Interpretation**: explain a divergence from the weights and the context. Active Exploitation puts more emphasis on exploitation signals; Business Impact on business context. Neither profile is ground truth.
 5. **Assets**: show a Tomcat component and its Product decision, which is separate from the CVE match. **Vulnerabilities** shows the `SYNTHETIC DEMO` labeling of the data.
 

@@ -22,7 +22,7 @@ export default function ComparisonHistoryDrawer({ open, items, onClose, onOpen, 
             <article key={item.job_id} className="panel">
               <div className="flex items-start justify-between gap-3 px-3 pt-2.5">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2"><StatusIcon status={item.status} /><span className="label-caps !text-[10px]">{item.scope}</span>{item.is_stale && <span className="border border-dashed border-gray-500 px-1 font-mono text-[10px] font-medium uppercase text-gray-700">Stale</span>}</div>
+                  <div className="flex flex-wrap items-center gap-2"><StatusIcon status={item.status} /><span className="label-caps !text-[10px]">{item.scope}</span>{item.changed_scenarios?.length > 0 && <Badge title={item.changed_scenarios.map((scenario) => `${scenario.name}: ${scenario.reasons.join('; ')}`).join('\n')}>Profiles changed</Badge>}{item.data_changed && <Badge>Data changed</Badge>}{item.subset && <Badge>Subset</Badge>}</div>
                   <h3 className="mt-1 truncate text-[13px] font-semibold text-gray-900">{item.baseline_name}</h3>
                   <p className="line-clamp-2 text-xs text-gray-500">vs {item.candidate_names.join(', ')}</p>
                 </div>
@@ -41,5 +41,6 @@ export default function ComparisonHistoryDrawer({ open, items, onClose, onOpen, 
   );
 }
 
+function Badge({ children, title }: { children: React.ReactNode; title?: string }) { return <span title={title} className="border border-dashed border-gray-500 px-1 font-mono text-[10px] font-medium uppercase text-gray-700">{children}</span>; }
 function StatusIcon({ status }: { status: ComparisonHistoryItem['status'] }) { if (status === 'completed') return <CheckCircle2 className="h-3.5 w-3.5 text-accent-700" />; if (status === 'failed' || status === 'cancelled') return <AlertTriangle className="h-3.5 w-3.5 text-red-600" />; return <Clock3 className="h-3.5 w-3.5 text-accent-600" />; }
 function formatDate(value: string) { return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value)); }

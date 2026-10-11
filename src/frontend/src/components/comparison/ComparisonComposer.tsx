@@ -1,6 +1,8 @@
-import { Check, Play, Plus, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { NamedScoringProfile, ScoringPreset, ScoringScope } from '../../api/client';
+import { AlertTriangle, Check, Filter, Play, Plus, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { NamedScoringProfile, ScoringPreset, ScoringScope, previewComparisonSubset } from '../../api/client';
+import { AttributeFilterFields } from './ComparisonFilterBar';
+import { EMPTY_ATTRIBUTES, Population, describeAttributes, entityNoun, toSubset } from './filters';
 import { CandidateMarker, ReferenceMarker } from './markers';
 import ScenarioSignature from './ScenarioSignature';
 
@@ -24,6 +26,10 @@ export default function ComparisonComposer({
   profiles,
   running,
   onRun,
+  population,
+  onPopulationChange,
+  followedCount,
+  changed,
 }: {
   scope: ScoringScope;
   onScopeChange: (scope: ScoringScope) => void;
@@ -35,6 +41,11 @@ export default function ComparisonComposer({
   profiles: NamedScoringProfile[];
   running: boolean;
   onRun: () => void;
+  population: Population;
+  onPopulationChange: (population: Population) => void;
+  followedCount: number;
+  /** Scenarios whose configuration changed since the loaded comparison ran. */
+  changed: Map<string, string[]>;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -86,7 +97,7 @@ export default function ComparisonComposer({
               </select>
             </label>
           </div>
-          <div className="text-base font-semibold text-gray-900">{baseline?.name ?? 'Select a reference'}</div>
+          <div className="flex items-center gap-2 text-base font-semibold text-gray-900">{baseline?.name ?? 'Select a reference'}{baseline && <ChangedTag reasons={changed.get(baseline.id)} />}</div>
           <p className="mt-0.5 min-h-10 text-xs leading-5 text-gray-500">{baseline?.description || 'The benchmark every candidate is measured against.'}</p>
           {baseline && <div className="mt-3 border-t border-gray-200 pt-3"><ScenarioSignature scope={scope} profiles={profiles} {...signatureProps(baseline)} /></div>}
         </div>
@@ -100,6 +111,7 @@ export default function ComparisonComposer({
                     <CandidateMarker index={index} />
                     <div className="min-w-0">
                       <h3 className="truncate text-[13px] font-semibold leading-5 text-gray-900">{candidate.name}</h3>
+                      <ChangedTag reasons={changed.get(candidate.id)} />
                       <p className="truncate text-[11px] text-gray-500">{candidate.description || 'Scoring candidate'}</p>
                     </div>
                   </div>
@@ -152,8 +164,10 @@ export default function ComparisonComposer({
             </div>
           </div>
 
+          <PopulationPicker scope={scope} population={population} onChange={onPopulationChange} followedCount={followedCount} />
+
           <div className="mt-auto flex items-center justify-between gap-3 border-t border-gray-200 pt-3">
-            <span className="text-xs text-gray-500">{candidates.length} candidate{candidates.length === 1 ? '' : 's'} against {baseline?.name ?? 'no reference'}</span>
+            <span className="text-xs text-gray-500">{candidates.length} candidate{candidates.length === 1 ? '' : 's'} against {baseline?.name ?? 'no reference'}{population.mode === 'subset' ? ', on a subset' : ''}</span>
             <button
               type="button"
               onClick={onRun}
@@ -164,5 +178,76 @@ export default function ComparisonComposer({
         </div>
       </div>
     </section>
+  );
+}
+
+function ChangedTag({ reasons }: { reasons?: string[] }) {
+  if (!reasons?.length) return null;
+  return (
+    <span className="mt-0.5 inline-flex items-center gap-1 border border-dashed border-gray-500 px-1 font-mono text-[10px] font-medium uppercase text-gray-700" title={reasons.join('\n')}>
+      <AlertTriangle className="h-3 w-3" /> Changed since last run
+    </span>
+  );
+}
+
+/** The comparison population: everything, or a subset saved with the run. */
+function PopulationPicker({ scope, population, onChange, followedCount }: { scope: ScoringScope; population: Population; onChange: (population: Population) => void; followedCount: number }) {
+  const [open, setOpen] = useState(false);
+  const [preview, setPreview] = useState<{ count: number; total: number } | null>(null);
+  const subset = toSubset(population);
+  const subsetKey = JSON.stringify(subset);
+  const descriptions = describeAttributes(population.attributes);
+
+  useEffect(() => {
+    if (population.mode !== 'subset') { setPreview(null); return; }
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      previewComparisonSubset(scope, subset ?? {}, controller.signal).then(setPreview).catch(() => { if (!controller.signal.aborted) setPreview(null); });
+    }, 300);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [scope, subsetKey, population.mode]);
+
+  return (
+    <div className="border border-gray-200 bg-gray-50 px-3 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Filter className="h-3.5 w-3.5 text-gray-500" />
+          <span className="label-caps !text-[10px]">Population</span>
+          <div className="inline-flex border border-gray-300 bg-white" role="group" aria-label="Comparison population">
+            {(['all', 'subset'] as const).map((mode) => (
+              <button key={mode} type="button" aria-pressed={population.mode === mode} onClick={() => { onChange({ ...population, mode }); setOpen(mode === 'subset'); }} className={`border-r border-gray-300 px-2.5 py-0.5 text-xs font-medium last:border-r-0 ${population.mode === mode ? 'bg-gray-800 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                {mode === 'all' ? `All ${entityNoun(scope)}` : 'Subset'}
+              </button>
+            ))}
+          </div>
+        </div>
+        {population.mode === 'subset' && (
+          <div className="flex items-center gap-2 text-[11px] text-gray-600">
+            <span className="font-mono" role="status">{preview ? `${preview.count.toLocaleString()} of ${preview.total.toLocaleString()} ${entityNoun(scope, preview.total)}` : 'Counting…'}</span>
+            <button type="button" onClick={() => setOpen((value) => !value)} className="font-semibold underline">{open ? 'Hide criteria' : 'Edit criteria'}</button>
+          </div>
+        )}
+      </div>
+      {population.mode === 'subset' && !open && (
+        <p className="mt-1.5 text-[11px] text-gray-600">
+          {[...descriptions.map((item) => item.label), ...(population.entityIds.length ? [`${population.entityIds.length.toLocaleString()} pinned items`] : [])].join(' · ') || 'No criteria yet — every item is included.'}
+        </p>
+      )}
+      {population.mode === 'subset' && open && (
+        <div className="mt-3 space-y-3">
+          <AttributeFilterFields scope={scope} value={population.attributes} onChange={(attributes) => onChange({ ...population, attributes })} followedCount={followedCount} />
+          {population.entityIds.length > 0 && (
+            <div className="flex items-center justify-between gap-2 border-t border-gray-200 pt-2 text-[11px] text-gray-600">
+              <span>{population.entityIds.length.toLocaleString()} items pinned by the original run (e.g. its followed items).</span>
+              <button type="button" onClick={() => onChange({ ...population, entityIds: [] })} className="font-semibold underline">Release</button>
+            </div>
+          )}
+          <div className="flex justify-between gap-2 text-[11px] text-gray-500">
+            <span>Ranks, movements and correlation are computed inside this population. Scoring still covers every item.</span>
+            <button type="button" onClick={() => onChange({ mode: 'subset', attributes: EMPTY_ATTRIBUTES, entityIds: [] })} className="shrink-0 font-semibold underline">Reset</button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

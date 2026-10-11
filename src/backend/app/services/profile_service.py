@@ -16,7 +16,9 @@ from app.models.scoring import ScoringContext, ScoringJob, ScoringPreset, Scorin
 from app.schemas.asset import AssetScoringProfile
 from app.schemas.finding import FindingScoringProfile
 from app.schemas.scoring import (
+    ChangedScenario,
     ComparisonCandidateResult,
+    ComparisonFilters,
     ComparisonHistoryItem,
     ComparisonItem,
     ComparisonResult,
@@ -28,6 +30,8 @@ from app.schemas.scoring import (
     PresetUpdate,
     ScoringProfile as VulnerabilityScoringProfile,
 )
+
+from app.services.comparison_filters import entity_filter_sql
 
 logger = logging.getLogger(__name__)
 _job_lock = asyncio.Lock()
@@ -733,20 +737,27 @@ async def _scenario_snapshot(
     }
 
 
+def job_subset(job: ScoringJob) -> ComparisonFilters | None:
+    """The comparison population saved with the job, if any."""
+    value = (job.request or {}).get("subset")
+    return ComparisonFilters.model_validate(value) if value else None
+
+
 async def _build_comparison_summary(session: AsyncSession, job: ScoringJob) -> dict[str, Any]:
     baseline_id = UUID(job.request["baseline_id"])
     candidate_ids = [UUID(value) for value in job.request["candidate_ids"]]
+    subset = job_subset(job)
     run_values = list((await session.execute(
         select(ScoringRun).where(ScoringRun.job_id == job.id)
     )).scalars())
     runs = {run.target_id: run for run in run_values if run.target_id is not None}
-    baseline_rows = await _score_rows(session, job.scope, baseline_id)
+    baseline_rows = await _score_rows(session, job.scope, baseline_id, subset)
     baseline = await _scenario_snapshot(
         session, job.scope, baseline_id, _distribution(baseline_rows), runs
     )
     candidates: list[dict[str, Any]] = []
     for candidate_id in candidate_ids:
-        candidate_rows = await _score_rows(session, job.scope, candidate_id)
+        candidate_rows = await _score_rows(session, job.scope, candidate_id, subset)
         compared = _compare(candidate_id, baseline_rows, candidate_rows)
         snapshot = await _scenario_snapshot(
             session, job.scope, candidate_id, compared.distribution, runs
@@ -759,6 +770,7 @@ async def _build_comparison_summary(session: AsyncSession, job: ScoringJob) -> d
             "mean_score_delta": compared.mean_score_delta,
             "median_score_delta": compared.median_score_delta,
             "spearman_rank_correlation": compared.spearman_rank_correlation,
+            "top_n": compared.top_n,
         })
         candidates.append(snapshot)
     watermark = next(
@@ -784,19 +796,99 @@ async def _run_details_available(session: AsyncSession, run: ScoringRun) -> bool
     return count >= run.rows_scored
 
 
-async def _comparison_state(session: AsyncSession, job: ScoringJob) -> tuple[bool, bool, bool]:
+async def _current_profile_revisions(session: AsyncSession, scope: str, target_id: UUID) -> dict[str, int] | None:
+    """Profile revisions a run of this scenario would use now (None if it no longer exists)."""
+    if scope in ("vulnerability", "asset"):
+        profile = await session.get(ScoringProfile, target_id)
+        return {str(profile.id): profile.revision} if profile else None
+    if scope == "preset":
+        preset = await session.get(ScoringPreset, target_id)
+        if preset is None:
+            return None
+        context = await session.get(ScoringContext, preset.context_id)
+        ids = (context.vulnerability_profile_id, context.asset_profile_id, context.finding_profile_id)
+    else:
+        _, active = await get_active_preset(session)
+        ids = (active.vulnerability_profile_id, active.asset_profile_id, target_id)
+    profiles = [await session.get(ScoringProfile, value) for value in ids]
+    if any(profile is None for profile in profiles):
+        return None
+    return {str(profile.id): profile.revision for profile in profiles}
+
+
+async def _scenario_changes(session: AsyncSession, run: ScoringRun) -> list[str]:
+    """Explain how a scenario's configuration differs from what this run used."""
+    current = await _current_profile_revisions(session, run.scope, run.target_id)
+    if current is None:
+        return ["Scenario or one of its profiles was deleted"]
+    used = {key: int(value) for key, value in (run.profile_revisions or {}).items()}
+    reasons: list[str] = []
+    profiles = {
+        key: await session.get(ScoringProfile, UUID(key)) for key in set(used) | set(current)
+    }
+    for key, revision in used.items():
+        if key in current and current[key] != revision:
+            profile = profiles[key]
+            reasons.append(f"{profile.stage.capitalize()} profile “{profile.name}” revised (r{revision} → r{current[key]})")
+    for key in current.keys() - used.keys():
+        profile = profiles[key]
+        reasons.append(f"Now uses another {profile.stage} profile (“{profile.name}”)")
+    return reasons
+
+
+async def _details_available(session: AsyncSession, job: ScoringJob, runs: list[ScoringRun] | None = None) -> bool:
+    if runs is None:
+        runs = list((await session.execute(select(ScoringRun).where(ScoringRun.job_id == job.id))).scalars())
+    return bool(runs) and job.status == "completed" and all([
+        await _run_details_available(session, run) for run in runs
+    ])
+
+
+class ComparisonState:
+    def __init__(
+        self,
+        is_inconsistent: bool = False,
+        details_available: bool = False,
+        data_changed: bool = False,
+        changed_scenarios: list[ChangedScenario] | None = None,
+    ) -> None:
+        self.is_inconsistent = is_inconsistent
+        self.details_available = details_available
+        self.data_changed = data_changed
+        self.changed_scenarios = changed_scenarios or []
+        # Profile edits used to be tracked through ScoringRun.is_stale; revisions
+        # are now compared directly so preset re-wiring is detected too.
+        self.is_stale = data_changed or bool(self.changed_scenarios)
+
+
+async def _comparison_state(session: AsyncSession, job: ScoringJob) -> ComparisonState:
     runs = list((await session.execute(
         select(ScoringRun).where(ScoringRun.job_id == job.id)
     )).scalars())
     if not runs:
-        return False, False, False
+        return ComparisonState()
     current = await dataset_watermark(session)
-    is_stale = any(run.is_stale or (run.dataset_watermark_after and run.dataset_watermark_after != current) for run in runs)
+    data_changed = any(run.dataset_watermark_after and run.dataset_watermark_after != current for run in runs)
     is_inconsistent = any(run.status == "inconsistent" for run in runs)
-    details_available = job.status == "completed" and all([
-        await _run_details_available(session, run) for run in runs
-    ])
-    return is_stale, is_inconsistent, details_available
+    details_available = await _details_available(session, job, runs)
+    names = {}
+    for item in [(job.result_summary or {}).get("baseline") or {}, *((job.result_summary or {}).get("candidates") or [])]:
+        if item.get("id"):
+            names[item["id"]] = item.get("name")
+    changed: list[ChangedScenario] = []
+    for run in runs:
+        if run.target_id is None:
+            continue
+        reasons = await _scenario_changes(session, run)
+        if reasons:
+            name = names.get(str(run.target_id)) or await _target_name(session, job.scope, run.target_id)
+            changed.append(ChangedScenario(id=run.target_id, name=name, reasons=reasons))
+    return ComparisonState(
+        is_inconsistent=is_inconsistent,
+        details_available=details_available,
+        data_changed=data_changed,
+        changed_scenarios=changed,
+    )
 
 
 async def get_comparison_summary(session: AsyncSession, job_id: UUID) -> ComparisonSummary:
@@ -808,7 +900,7 @@ async def get_comparison_summary(session: AsyncSession, job_id: UUID) -> Compari
     if not job.result_summary:
         job.result_summary = await _build_comparison_summary(session, job)
         await session.commit()
-    is_stale, is_inconsistent, details_available = await _comparison_state(session, job)
+    state = await _comparison_state(session, job)
     return ComparisonSummary(
         job_id=job.id,
         scope=job.scope,
@@ -818,9 +910,12 @@ async def get_comparison_summary(session: AsyncSession, job_id: UUID) -> Compari
         baseline=job.result_summary["baseline"],
         candidates=job.result_summary["candidates"],
         dataset_watermark=job.result_summary.get("dataset_watermark", {}),
-        is_stale=is_stale,
-        is_inconsistent=is_inconsistent,
-        details_available=details_available,
+        is_stale=state.is_stale,
+        is_inconsistent=state.is_inconsistent,
+        details_available=state.details_available,
+        data_changed=state.data_changed,
+        changed_scenarios=state.changed_scenarios,
+        subset=job_subset(job),
         created_at=job.created_at,
         started_at=job.started_at,
         finished_at=job.finished_at,
@@ -851,7 +946,7 @@ async def list_comparisons(
                 {"name": await _target_name(session, job.scope, UUID(value))}
                 for value in job.request.get("candidate_ids", [])
             ]
-        is_stale, is_inconsistent, details_available = await _comparison_state(session, job)
+        state = await _comparison_state(session, job)
         values.append(ComparisonHistoryItem(
             job_id=job.id,
             scope=job.scope,
@@ -861,9 +956,12 @@ async def list_comparisons(
             progress=float(job.progress),
             baseline_name=baseline.get("name", "Unknown baseline"),
             candidate_names=[item.get("name", "Unknown candidate") for item in candidates],
-            is_stale=is_stale,
-            is_inconsistent=is_inconsistent,
-            details_available=details_available,
+            is_stale=state.is_stale,
+            is_inconsistent=state.is_inconsistent,
+            details_available=state.details_available,
+            data_changed=state.data_changed,
+            changed_scenarios=state.changed_scenarios,
+            subset=job_subset(job),
             created_at=job.created_at,
             finished_at=job.finished_at,
             error=job.error,
@@ -888,7 +986,12 @@ async def _resolved_score_target(session: AsyncSession, scope: str, target_id: U
     return target_id
 
 
-def _ranked_score_source(scope: str, parameter: str) -> str:
+ENTITY_COLUMNS = {"vulnerability": "s.vulnerability_id", "asset": "s.asset_id"}
+
+
+def _ranked_score_source(scope: str, parameter: str, population: list[str] | None = None) -> str:
+    """Scored rows of one scenario, optionally restricted to a population."""
+    extra = "".join(f" AND {condition}" for condition in population or [])
     if scope == "vulnerability":
         return f"""
             SELECT s.vulnerability_id AS entity_id, v.cve_id AS label,
@@ -896,7 +999,7 @@ def _ranked_score_source(scope: str, parameter: str) -> str:
                    COALESCE(s.priority_level, 'UNSCORED') AS priority
             FROM vulnerability_scores s
             JOIN vulnerabilities v ON v.id = s.vulnerability_id
-            WHERE s.vulnerability_profile_id = :{parameter}
+            WHERE s.vulnerability_profile_id = :{parameter}{extra}
         """
     if scope == "asset":
         return f"""
@@ -905,7 +1008,7 @@ def _ranked_score_source(scope: str, parameter: str) -> str:
                    COALESCE(s.priority_level, 'UNSCORED') AS priority
             FROM asset_scores s
             JOIN assets a ON a.id = s.asset_id
-            WHERE s.asset_profile_id = :{parameter}
+            WHERE s.asset_profile_id = :{parameter}{extra}
         """
     return f"""
         SELECT s.finding_id AS entity_id, v.cve_id || ' @ ' || a.name AS label,
@@ -915,54 +1018,43 @@ def _ranked_score_source(scope: str, parameter: str) -> str:
         JOIN findings f ON f.id = s.finding_id
         JOIN vulnerabilities v ON v.id = f.vulnerability_id
         JOIN assets a ON a.id = f.asset_id
-        WHERE s.scoring_context_id = :{parameter}
+        WHERE s.scoring_context_id = :{parameter}{extra}
     """
 
 
-async def comparison_items(
-    session: AsyncSession,
-    job_id: UUID,
-    candidate_id: UUID,
-    page: int = 1,
-    per_page: int = 50,
-    query: str | None = None,
-    movement: str | None = None,
-    from_priority: str | None = None,
-    to_priority: str | None = None,
-    sort: str = "abs_rank_delta",
-    order: str = "desc",
-) -> PaginatedComparisonItems:
-    job = await session.get(ScoringJob, job_id)
-    if job is None or job.kind != "comparison":
+def population_sql(scope: str, subset: ComparisonFilters | None) -> tuple[list[str], dict[str, Any]]:
+    return entity_filter_sql(scope, subset, ENTITY_COLUMNS.get(scope, "s.finding_id"), "pop_")
+
+
+def ranked_cte(scope: str, name: str, parameter: str, population: list[str]) -> str:
+    """A CTE ranking one scenario's rows (rank 1 = top of the queue)."""
+    return f"""{name}_source AS ({_ranked_score_source(scope, parameter, population)}),
+        {name} AS (
+            SELECT *, ROW_NUMBER() OVER (
+                ORDER BY score DESC NULLS LAST, confidence DESC NULLS LAST, entity_id::text
+            )::int AS rank
+            FROM {name}_source
+        )"""
+
+
+async def compared_cte(
+    session: AsyncSession, job: ScoringJob, candidate_id: UUID
+) -> tuple[str, dict[str, Any]]:
+    """Reference vs candidate rows of a completed comparison, ranked inside its population."""
+    if job.kind != "comparison":
         raise LookupError("Comparison job not found")
     if job.status != "completed":
         raise ValueError("Comparison is not complete")
-    candidates = {UUID(value) for value in job.request.get("candidate_ids", [])}
-    if candidate_id not in candidates:
+    if candidate_id not in {UUID(value) for value in job.request.get("candidate_ids", [])}:
         raise LookupError("Comparison candidate not found")
-    _, _, details_available = await _comparison_state(session, job)
-    if not details_available:
+    if not await _details_available(session, job):
         raise RuntimeError("Comparison details have expired")
-
-    baseline_id = await _resolved_score_target(session, job.scope, UUID(job.request["baseline_id"]))
-    resolved_candidate_id = await _resolved_score_target(session, job.scope, candidate_id)
-    baseline_source = _ranked_score_source(job.scope, "baseline_id")
-    candidate_source = _ranked_score_source(job.scope, "candidate_id")
-    compared_cte = f"""
-        WITH baseline_source AS ({baseline_source}),
-        candidate_source AS ({candidate_source}),
-        baseline AS (
-            SELECT *, ROW_NUMBER() OVER (
-                ORDER BY score DESC NULLS LAST, confidence DESC NULLS LAST, entity_id::text
-            )::int AS rank
-            FROM baseline_source
-        ),
-        candidate AS (
-            SELECT *, ROW_NUMBER() OVER (
-                ORDER BY score DESC NULLS LAST, confidence DESC NULLS LAST, entity_id::text
-            )::int AS rank
-            FROM candidate_source
-        ),
+    population, params = population_sql(job.scope, job_subset(job))
+    params["baseline_id"] = await _resolved_score_target(session, job.scope, UUID(job.request["baseline_id"]))
+    params["candidate_id"] = await _resolved_score_target(session, job.scope, candidate_id)
+    sql = f"""
+        WITH {ranked_cte(job.scope, "baseline", "baseline_id", population)},
+        {ranked_cte(job.scope, "candidate", "candidate_id", population)},
         compared AS (
             SELECT COALESCE(b.entity_id, c.entity_id) AS entity_id,
                    COALESCE(b.label, c.label) AS label,
@@ -978,16 +1070,19 @@ async def comparison_items(
             FULL OUTER JOIN candidate c ON c.entity_id = b.entity_id
         )
     """
-    conditions = ["TRUE"]
-    params: dict[str, Any] = {
-        "baseline_id": baseline_id,
-        "candidate_id": resolved_candidate_id,
-        "limit": min(max(per_page, 1), 100),
-        "offset": (max(page, 1) - 1) * min(max(per_page, 1), 100),
-    }
-    if query:
-        conditions.append("label ILIKE :query")
-        params["query"] = f"%{query.strip()}%"
+    return sql, params
+
+
+def selection_conditions(
+    movement: str | None = None,
+    from_priority: str | None = None,
+    to_priority: str | None = None,
+    top_n: int | None = None,
+    top_change: str | None = None,
+) -> tuple[list[str], dict[str, Any]]:
+    """Conditions on the compared rows for chart selections."""
+    conditions: list[str] = []
+    params: dict[str, Any] = {}
     if movement == "promoted":
         conditions.append("rank_delta > 0")
     elif movement == "demoted":
@@ -1000,21 +1095,67 @@ async def comparison_items(
     if to_priority:
         conditions.append("candidate_priority = :to_priority")
         params["to_priority"] = to_priority
-    where = " AND ".join(conditions)
+    if top_n and top_change:
+        params["top_n"] = top_n
+        if top_change == "entered":
+            conditions.append("candidate_rank <= :top_n AND (baseline_rank IS NULL OR baseline_rank > :top_n)")
+        elif top_change == "left":
+            conditions.append("baseline_rank <= :top_n AND (candidate_rank IS NULL OR candidate_rank > :top_n)")
+        elif top_change == "stayed":
+            conditions.append("baseline_rank <= :top_n AND candidate_rank <= :top_n")
+    return conditions, params
+
+
+def view_conditions(scope: str, filters: ComparisonFilters | None) -> tuple[list[str], dict[str, Any]]:
+    """Attribute filters applied after ranking (they never change ranks)."""
+    return entity_filter_sql(scope, filters, "entity_id", "view_")
+
+
+async def comparison_items(
+    session: AsyncSession,
+    job_id: UUID,
+    candidate_id: UUID,
+    page: int = 1,
+    per_page: int = 50,
+    query: str | None = None,
+    movement: str | None = None,
+    from_priority: str | None = None,
+    to_priority: str | None = None,
+    sort: str = "abs_rank_delta",
+    order: str = "desc",
+    filters: ComparisonFilters | None = None,
+    top_n: int | None = None,
+    top_change: str | None = None,
+) -> PaginatedComparisonItems:
+    job = await session.get(ScoringJob, job_id)
+    if job is None:
+        raise LookupError("Comparison job not found")
+    cte, params = await compared_cte(session, job, candidate_id)
+    if query:
+        filters = (filters or ComparisonFilters()).model_copy(update={"q": query})
+    conditions, view_params = view_conditions(job.scope, filters)
+    selected, selection_params = selection_conditions(movement, from_priority, to_priority, top_n, top_change)
+    params.update(view_params)
+    params.update(selection_params)
+    limit = min(max(per_page, 1), 100)
+    params.update({"limit": limit, "offset": (max(page, 1) - 1) * limit})
+    where = " AND ".join(["TRUE", *conditions, *selected])
     sort_columns = {
         "abs_rank_delta": "ABS(rank_delta)",
         "rank_delta": "rank_delta",
         "abs_score_delta": "ABS(score_delta)",
         "score_delta": "score_delta",
         "label": "LOWER(label)",
+        "baseline_rank": "baseline_rank",
+        "candidate_rank": "candidate_rank",
     }
     sort_column = sort_columns.get(sort, sort_columns["abs_rank_delta"])
     direction = "ASC" if order == "asc" else "DESC"
     total = (await session.execute(
-        text(f"{compared_cte} SELECT COUNT(*) FROM compared WHERE {where}"), params
+        text(f"{cte} SELECT COUNT(*) FROM compared WHERE {where}"), params
     )).scalar_one()
     rows = (await session.execute(text(f"""
-        {compared_cte}
+        {cte}
         SELECT * FROM compared
         WHERE {where}
         ORDER BY {sort_column} {direction} NULLS LAST, LOWER(label), entity_id::text
@@ -1023,7 +1164,7 @@ async def comparison_items(
     return PaginatedComparisonItems(
         total=total,
         page=max(page, 1),
-        per_page=params["limit"],
+        per_page=limit,
         items=[ComparisonItem.model_validate(dict(row)) for row in rows],
     )
 
@@ -1036,10 +1177,11 @@ async def comparison_result(session: AsyncSession, job_id: UUID) -> ComparisonRe
         raise ValueError("Comparison is not complete")
     baseline = UUID(job.request["baseline_id"])
     candidates = [UUID(value) for value in job.request["candidate_ids"]]
-    baseline_rows = await _score_rows(session, job.scope, baseline)
+    subset = job_subset(job)
+    baseline_rows = await _score_rows(session, job.scope, baseline, subset)
     candidate_results = []
     for candidate in candidates:
-        rows = await _score_rows(session, job.scope, candidate)
+        rows = await _score_rows(session, job.scope, candidate, subset)
         candidate_results.append(_compare(candidate, baseline_rows, rows))
     return ComparisonResult(
         job_id=job.id, scope=job.scope, baseline_id=baseline,
@@ -1047,27 +1189,13 @@ async def comparison_result(session: AsyncSession, job_id: UUID) -> ComparisonRe
     )
 
 
-async def _score_rows(session: AsyncSession, scope: str, target_id: UUID) -> list[tuple[UUID, str, float | None, float | None, str | None]]:
-    if scope == "vulnerability":
-        query = text("SELECT vs.vulnerability_id, v.cve_id, vs.priority_score::float8, vs.priority_confidence::float8, vs.priority_level FROM vulnerability_scores vs JOIN vulnerabilities v ON v.id=vs.vulnerability_id WHERE vs.vulnerability_profile_id=:id")
-    elif scope == "asset":
-        query = text("SELECT s.asset_id, a.name, s.priority_score::float8, s.priority_confidence::float8, s.priority_level FROM asset_scores s JOIN assets a ON a.id=s.asset_id WHERE s.asset_profile_id=:id")
-    else:
-        context_id = target_id
-        if scope == "preset":
-            preset = await session.get(ScoringPreset, target_id)
-            context_id = preset.context_id
-        elif scope == "finding":
-            _, active = await get_active_preset(session)
-            context_id = (await _context(
-                session,
-                active.vulnerability_profile_id,
-                active.asset_profile_id,
-                target_id,
-            )).id
-        query = text("SELECT s.finding_id, v.cve_id || ' @ ' || a.name, s.priority_score::float8, s.priority_confidence::float8, s.priority_level FROM finding_scores s JOIN findings f ON f.id=s.finding_id JOIN vulnerabilities v ON v.id=f.vulnerability_id JOIN assets a ON a.id=f.asset_id WHERE s.scoring_context_id=:id")
-        target_id = context_id
-    return list((await session.execute(query, {"id": target_id})).tuples())
+async def _score_rows(
+    session: AsyncSession, scope: str, target_id: UUID, subset: ComparisonFilters | None = None
+) -> list[tuple[UUID, str, float | None, float | None, str | None]]:
+    population, params = population_sql(scope, subset)
+    params["id"] = await _resolved_score_target(session, scope, target_id)
+    query = text(f"SELECT entity_id, label, score, confidence, priority FROM ({_ranked_score_source(scope, 'id', population)}) ranked")
+    return [tuple(row) for row in (await session.execute(query, params)).all()]
 
 
 def _distribution(rows: list[tuple]) -> dict[str, int]:
@@ -1075,6 +1203,19 @@ def _distribution(rows: list[tuple]) -> dict[str, int]:
     for row in rows:
         level = row[4] or "UNSCORED"
         result[level] = result.get(level, 0) + 1
+    return result
+
+
+TOP_N_SIZES = (10, 50, 100, 500)
+
+
+def _top_n(baseline_rank: dict[UUID, int], candidate_rank: dict[UUID, int]) -> dict[str, dict[str, int]]:
+    """How many items enter, leave or stay in the top N of the queue."""
+    result: dict[str, dict[str, int]] = {}
+    for size in TOP_N_SIZES:
+        before = {key for key, rank in baseline_rank.items() if rank <= size}
+        after = {key for key, rank in candidate_rank.items() if rank <= size}
+        result[str(size)] = {"entered": len(after - before), "left": len(before - after), "overlap": len(before & after)}
     return result
 
 
@@ -1112,7 +1253,7 @@ def _compare(candidate_id: UUID, baseline_rows: list[tuple], candidate_rows: lis
         promoted=promoted, demoted=demoted, unchanged=unchanged,
         mean_score_delta=statistics.fmean(deltas) if deltas else 0,
         median_score_delta=statistics.median(deltas) if deltas else 0,
-        spearman_rank_correlation=_spearman(rank_pairs), items=items,
+        spearman_rank_correlation=_spearman(rank_pairs), top_n=_top_n(baseline_rank, candidate_rank), items=items,
     )
 
 

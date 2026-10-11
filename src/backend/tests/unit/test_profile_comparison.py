@@ -41,3 +41,15 @@ def test_comparison_includes_unscored_transitions():
     )
     assert result.transition_matrix["V3"]["UNSCORED"] == 1
     assert result.transition_matrix["UNSCORED"]["V1"] == 1
+
+
+def test_comparison_reports_top_n_entries_and_exits():
+    ids = [uuid4() for _ in range(12)]
+    baseline = [(value, str(index), 100.0 - index, 50.0, "V1") for index, value in enumerate(ids)]
+    # The candidate reverses the queue: the bottom two enter the top 10.
+    candidate = [(value, str(index), float(index), 50.0, "V1") for index, value in enumerate(ids)]
+
+    result = _compare(uuid4(), baseline, candidate)
+
+    assert result.top_n["10"] == {"entered": 2, "left": 2, "overlap": 8}
+    assert result.top_n["50"] == {"entered": 0, "left": 0, "overlap": 12}

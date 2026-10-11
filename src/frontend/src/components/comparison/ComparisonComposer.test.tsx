@@ -1,7 +1,16 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { NamedScoringProfile, ScoringPreset } from '../../api/client';
 import ComparisonComposer from './ComparisonComposer';
+import { EMPTY_POPULATION } from './filters';
+
+const mocks = vi.hoisted(() => ({ previewComparisonSubset: vi.fn() }));
+vi.mock('../../api/client', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../api/client')>(),
+  ...mocks,
+}));
+
+const extra = { population: EMPTY_POPULATION, onPopulationChange: vi.fn(), followedCount: 0, changed: new Map<string, string[]>() };
 
 const profile = (id: string, stage: NamedScoringProfile['stage']): NamedScoringProfile => ({
   id, stage, name: `${stage} profile`, description: '', revision: 1, is_builtin: true,
@@ -22,7 +31,7 @@ describe('ComparisonComposer', () => {
   it('removes a candidate without changing the reference', () => {
     const onCandidatesChange = vi.fn();
     const onBaselineChange = vi.fn();
-    render(<ComparisonComposer scope="preset" onScopeChange={vi.fn()} options={presets} baselineId="base" onBaselineChange={onBaselineChange} candidateIds={['candidate']} onCandidatesChange={onCandidatesChange} profiles={profiles} running={false} onRun={vi.fn()} />);
+    render(<ComparisonComposer scope="preset" onScopeChange={vi.fn()} options={presets} baselineId="base" onBaselineChange={onBaselineChange} candidateIds={['candidate']} onCandidatesChange={onCandidatesChange} profiles={profiles} running={false} onRun={vi.fn()} {...extra} />);
     fireEvent.click(screen.getByRole('button', { name: 'Remove Active Exploitation' }));
     expect(onCandidatesChange).toHaveBeenCalledWith([]);
     expect(onBaselineChange).not.toHaveBeenCalled();
@@ -30,8 +39,24 @@ describe('ComparisonComposer', () => {
 
   it('keeps advanced scopes available but secondary', () => {
     const onScopeChange = vi.fn();
-    render(<ComparisonComposer scope="preset" onScopeChange={onScopeChange} options={presets} baselineId="base" onBaselineChange={vi.fn()} candidateIds={['candidate']} onCandidatesChange={vi.fn()} profiles={profiles} running={false} onRun={vi.fn()} />);
+    render(<ComparisonComposer scope="preset" onScopeChange={onScopeChange} options={presets} baselineId="base" onBaselineChange={vi.fn()} candidateIds={['candidate']} onCandidatesChange={vi.fn()} profiles={profiles} running={false} onRun={vi.fn()} {...extra} />);
     fireEvent.click(screen.getByRole('button', { name: 'Assets' }));
     expect(onScopeChange).toHaveBeenCalledWith('asset');
+  });
+
+  it('flags scenarios changed since the loaded run', () => {
+    render(<ComparisonComposer scope="preset" onScopeChange={vi.fn()} options={presets} baselineId="base" onBaselineChange={vi.fn()} candidateIds={['candidate']} onCandidatesChange={vi.fn()} profiles={profiles} running={false} onRun={vi.fn()} {...extra} changed={new Map([['candidate', ['Asset profile revised (r1 → r2)']]])} />);
+    expect(screen.getByText('Changed since last run')).toHaveAttribute('title', 'Asset profile revised (r1 → r2)');
+  });
+
+  it('defines a subset population and previews its size', async () => {
+    mocks.previewComparisonSubset.mockResolvedValue({ count: 12, total: 40 });
+    const onPopulationChange = vi.fn();
+    const subset = { mode: 'subset' as const, attributes: { ...EMPTY_POPULATION.attributes, kev: 'true' as const }, entityIds: [] };
+    render(<ComparisonComposer scope="preset" onScopeChange={vi.fn()} options={presets} baselineId="base" onBaselineChange={vi.fn()} candidateIds={['candidate']} onCandidatesChange={vi.fn()} profiles={profiles} running={false} onRun={vi.fn()} {...extra} population={subset} onPopulationChange={onPopulationChange} />);
+    expect(await screen.findByText('12 of 40 findings')).toBeInTheDocument();
+    expect(mocks.previewComparisonSubset).toHaveBeenCalledWith('preset', { kev: true }, expect.anything());
+    fireEvent.click(screen.getByRole('button', { name: 'All findings' }));
+    await waitFor(() => expect(onPopulationChange).toHaveBeenCalledWith(expect.objectContaining({ mode: 'all' })));
   });
 });

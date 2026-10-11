@@ -1,11 +1,12 @@
 # Roadmap — prototype status
 
-Updated: 2026-10-05. Prepared for public release; current validations are recorded in [READINESS](docs/READINESS.md).
+Updated: 2026-10-05 (Compare slice). Prepared for public release; current validations are recorded in [READINESS](docs/READINESS.md).
 
 | Capability | Status |
 |---|---|
 | NVD, EPSS, KEV, EUVD ingestion | Implemented; availability of external services not guaranteed |
 | Integrated Lab: vulnerability/asset/finding scoring, revised profiles, presets, runs and Compare | Implemented; main demo path |
+| Compare analyst workflow: persistent state, config-change flags, associative chart filtering, attribute search, comparison subsets, followed items, top-N entries/exits, divergence explanation | Implemented; explanation shows signals and weight shares, not recomputed per-factor contributions |
 | Background jobs with live progress (scoring, matching, comparisons, ingestion) | Implemented; in-process, one job at a time |
 | CycloneDX import, assets/components and findings | Implemented; reimport replaces components, without full history continuity |
 | Product Resolution v0 | Implemented; small catalog, persisted decisions, unknown/ambiguous and versioned benchmark |
@@ -20,9 +21,9 @@ Recorded ideas, not committed work. Each one needs its own authorized slice.
 
 **Lab and analyst UX (near term)**
 
-- **Comparison pre-filter**: let the user restrict a comparison to a custom subset of findings (e.g. by asset, product, vendor, severity, KEV, date range) before it runs, so iterations on large datasets are faster. The subset definition is saved with the comparison run so results stay reproducible.
+- ~~**Comparison pre-filter**~~: implemented 2026-10-05 as a comparison *population* saved with the run (ranks inside it). Remaining: a date-range criterion, and restricting the scoring itself (it still covers every item because score tables are shared with the other views).
 - **"What's new" view**: show findings that appeared since the analyst's last visit or since a chosen date, split by cause: new CVE (ingestion) versus new or changed asset (inventory import). Aimed at analysts using the app several days a week. Requires a reliable first-seen timestamp per finding and its originating cause.
-- **Interactive Compare charts**: clicking a chart element in the Compare tab (a priority band, a rank-shift bucket, a candidate) applies a filter to the findings table below; selections combine and can be cleared individually (associative, Qlik-style filtering).
+- ~~**Interactive Compare charts**~~: implemented 2026-10-05 (bands, heatmap cells/headers, movements, top-N; chips; charts recomputed under attribute filters).
 
 **Target (after the core is validated)**
 

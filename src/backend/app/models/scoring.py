@@ -209,3 +209,19 @@ class ScoringRun(Base):
         Index("ix_scoring_runs_status", "status"),
         Index("ix_scoring_runs_target", "scope", "target_id"),
     )
+
+
+class FollowedItem(Base):
+    """An entity the analyst follows across comparisons (no polymorphic FK)."""
+
+    __tablename__ = "followed_items"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    entity_type = Column(String(20), nullable=False)
+    entity_id = Column(UUID(as_uuid=True), nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("entity_type", "entity_id", name="uq_followed_items_entity"),
+        CheckConstraint("entity_type IN ('vulnerability', 'asset', 'finding')", name="ck_followed_items_entity_type"),
+    )

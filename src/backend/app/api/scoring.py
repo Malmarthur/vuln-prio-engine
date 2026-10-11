@@ -7,6 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.scoring import ScoringContext, ScoringJob
 from app.schemas.scoring import (
+    ComparisonExplanation,
+    ComparisonFacets,
+    ComparisonFilters,
+    ComparisonFollowed,
     ComparisonRequest,
     ComparisonHistoryItem,
     ComparisonResult,
@@ -18,6 +22,10 @@ from app.schemas.scoring import (
     PresetCreate,
     PresetResponse,
     PresetUpdate,
+    FollowedChange,
+    FollowedEntityType,
+    FollowedItem,
+    FollowedItemsRequest,
     PaginatedComparisonItems,
     ProfileCloneRequest,
     ScoreDistribution,
@@ -25,7 +33,21 @@ from app.schemas.scoring import (
     ScoringRunRequest,
     ScoringRunResponse,
     RunHistoryResponse,
+    SubsetPreview,
+    SubsetPreviewRequest,
 )
+from app.services.comparison_analysis import (
+    comparison_facets,
+    comparison_followed,
+    explain_item,
+    follow,
+    follow_matching,
+    followed_ids,
+    list_followed,
+    preview_subset,
+    unfollow,
+)
+from app.services.comparison_filters import entity_type
 from app.services.profile_service import (
     activate_preset,
     cancel_job,
@@ -181,13 +203,76 @@ async def run_history(scope: str | None = None, target_id: UUID | None = None, d
     return await list_runs(db, scope, target_id)
 
 
+def comparison_filters(
+    q: str | None = Query(None, max_length=200),
+    kev: bool | None = None,
+    min_epss: float | None = Query(None, ge=0, le=1),
+    severity: list[str] = Query([]),
+    criticality: list[str] = Query([]),
+    exposure: list[str] = Query([]),
+    vendor: str | None = Query(None, max_length=200),
+    product: str | None = Query(None, max_length=200),
+    followed_only: bool = False,
+) -> ComparisonFilters:
+    """Attribute filters of the comparison views, as query parameters."""
+    return ComparisonFilters(
+        q=q, kev=kev, min_epss=min_epss, severities=severity, criticalities=criticality,
+        exposures=exposure, vendor=vendor, product=product, followed_only=followed_only,
+    )
+
+
+MOVEMENT_PATTERN = "^(promoted|demoted|unchanged)$"
+TOP_CHANGE_PATTERN = "^(entered|left|stayed)$"
+
+
 @router.post("/comparisons", response_model=JobResponse, status_code=202)
 async def create_comparison(payload: ComparisonRequest, db: AsyncSession = Depends(get_db)):
     ids = list(dict.fromkeys([payload.baseline_id, *payload.candidate_ids]))
-    return await enqueue_job(db, "comparison", payload.scope, {
+    request = {
         "baseline_id": str(payload.baseline_id), "candidate_ids": [str(value) for value in payload.candidate_ids],
         "target_ids": [str(value) for value in ids],
-    })
+    }
+    subset = payload.subset
+    if subset is not None and subset.followed_only:
+        # Freeze the followed list so the population stays reproducible.
+        followed = await followed_ids(db, entity_type(payload.scope))
+        if not followed:
+            raise HTTPException(status_code=422, detail="No followed items for this scope")
+        restricted = set(subset.entity_ids)
+        frozen = [value for value in followed if not restricted or value in restricted]
+        subset = subset.model_copy(update={"followed_only": False, "entity_ids": frozen[:5000]})
+    if subset is not None and not subset.is_empty():
+        request["subset"] = subset.model_dump(mode="json", exclude_defaults=True)
+    return await enqueue_job(db, "comparison", payload.scope, request)
+
+
+@router.post("/comparisons/subset/preview", response_model=SubsetPreview)
+async def comparison_subset_preview(payload: SubsetPreviewRequest, db: AsyncSession = Depends(get_db)):
+    return await preview_subset(db, payload.scope, payload.subset)
+
+
+@router.get("/followed", response_model=list[FollowedItem])
+async def followed_items(entity_type: FollowedEntityType, db: AsyncSession = Depends(get_db)):
+    return await list_followed(db, entity_type)
+
+
+@router.post("/followed", response_model=FollowedChange)
+async def add_followed_items(payload: FollowedItemsRequest, db: AsyncSession = Depends(get_db)):
+    changed, total = await follow(db, payload.entity_type, payload.entity_ids)
+    return FollowedChange(changed=changed, total=total)
+
+
+@router.delete("/followed", response_model=FollowedChange)
+async def remove_followed_items(
+    entity_type: FollowedEntityType,
+    entity_id: list[UUID] = Query([]),
+    clear: bool = False,
+    db: AsyncSession = Depends(get_db),
+):
+    if not entity_id and not clear:
+        raise HTTPException(status_code=422, detail="Pass entity_id values or clear=true")
+    changed, total = await unfollow(db, entity_type, None if clear else entity_id)
+    return FollowedChange(changed=changed, total=total)
 
 
 @router.get("/comparisons", response_model=list[ComparisonHistoryItem])
@@ -237,19 +322,80 @@ async def comparison_item_page(
     candidate_id: UUID,
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=100),
-    q: str | None = Query(None, max_length=200),
-    movement: str | None = Query(None, pattern="^(promoted|demoted|unchanged)$"),
+    movement: str | None = Query(None, pattern=MOVEMENT_PATTERN),
     from_priority: str | None = None,
     to_priority: str | None = None,
-    sort: str = Query("abs_rank_delta", pattern="^(abs_rank_delta|rank_delta|abs_score_delta|score_delta|label)$"),
+    top_n: int | None = Query(None, ge=1, le=100000),
+    top_change: str | None = Query(None, pattern=TOP_CHANGE_PATTERN),
+    sort: str = Query("abs_rank_delta", pattern="^(abs_rank_delta|rank_delta|abs_score_delta|score_delta|label|baseline_rank|candidate_rank)$"),
     order: str = Query("desc", pattern="^(asc|desc)$"),
+    filters: ComparisonFilters = Depends(comparison_filters),
     db: AsyncSession = Depends(get_db),
 ):
     try:
         return await comparison_items(
-            db, job_id, candidate_id, page, per_page, q, movement,
-            from_priority, to_priority, sort, order,
+            db, job_id, candidate_id, page, per_page, None, movement,
+            from_priority, to_priority, sort, order, filters, top_n, top_change,
         )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=410, detail=str(exc)) from exc
+    except Exception as exc:
+        raise _api_error(exc) from exc
+
+
+@router.get("/comparisons/{job_id}/facets", response_model=ComparisonFacets)
+async def comparison_facet_counts(
+    job_id: UUID,
+    filters: ComparisonFilters = Depends(comparison_filters),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await comparison_facets(db, job_id, filters)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=410, detail=str(exc)) from exc
+    except Exception as exc:
+        raise _api_error(exc) from exc
+
+
+@router.get("/comparisons/{job_id}/followed", response_model=ComparisonFollowed)
+async def comparison_followed_positions(job_id: UUID, db: AsyncSession = Depends(get_db)):
+    try:
+        return await comparison_followed(db, job_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=410, detail=str(exc)) from exc
+    except Exception as exc:
+        raise _api_error(exc) from exc
+
+
+@router.post("/comparisons/{job_id}/followed", response_model=FollowedChange)
+async def follow_comparison_matches(
+    job_id: UUID,
+    candidate_id: UUID,
+    movement: str | None = Query(None, pattern=MOVEMENT_PATTERN),
+    from_priority: str | None = None,
+    to_priority: str | None = None,
+    top_n: int | None = Query(None, ge=1, le=100000),
+    top_change: str | None = Query(None, pattern=TOP_CHANGE_PATTERN),
+    filters: ComparisonFilters = Depends(comparison_filters),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        changed, total = await follow_matching(
+            db, job_id, candidate_id, filters, movement, from_priority, to_priority, top_n, top_change,
+        )
+        return FollowedChange(changed=changed, total=total)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=410, detail=str(exc)) from exc
+    except Exception as exc:
+        raise _api_error(exc) from exc
+
+
+@router.get("/comparisons/{job_id}/items/{entity_id}/explain", response_model=ComparisonExplanation)
+async def comparison_item_explanation(
+    job_id: UUID, entity_id: UUID, candidate_id: UUID, db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await explain_item(db, job_id, candidate_id, entity_id)
     except RuntimeError as exc:
         raise HTTPException(status_code=410, detail=str(exc)) from exc
     except Exception as exc:
